@@ -70,7 +70,13 @@ aside{background:var(--p);display:flex;flex-direction:column;min-height:0;border
 #aux{margin-top:10px;background:var(--p);border-radius:10px;padding:10px;display:flex;gap:10px;flex-wrap:wrap}
 .auxcard{background:#0d1015;border-radius:8px;padding:8px;min-width:170px;display:flex;flex-direction:column;gap:5px}
 .auxcard label{display:flex;gap:6px;align-items:center;font-size:11px}
-@media(max-width:800px){#body{grid-template-columns:1fr}aside{display:none}}
+#browser{width:190px;flex:none;background:var(--p);border-radius:8px;padding:8px;margin-right:8px;max-height:calc(100vh - 150px);overflow:auto}
+#browser input[type=text]{width:100%;margin-bottom:6px}
+#browser details{margin-bottom:4px}#browser summary{cursor:pointer;color:var(--mu);font-size:11px;padding:3px 0}
+#browser .snd{display:flex;align-items:center;gap:4px;padding:3px 4px;border-radius:4px;cursor:pointer;font-size:12px}
+#browser .snd:hover{background:var(--p2)}#browser .snd .play{opacity:.6}
+#sessWrap{display:flex;align-items:flex-start}
+@media(max-width:800px){#body{grid-template-columns:1fr}aside{display:none}#browser{display:none}}
 </style>
 </head>
 <body>
@@ -103,9 +109,14 @@ aside{background:var(--p);display:flex;flex-direction:column;min-height:0;border
           <select id="newInst"></select><button id="addTrack">+ Canal</button>
           <small class="mu">Clique num clipe para tocar · ✎ para editar · + cria um clipe novo · duplo clique em um controle restaura o padrão</small>
         </div>
-        <div id="sgrid"></div>
-        <div id="clipEditor" hidden></div>
-        <div id="aux"></div>
+        <div id="sessWrap">
+          <div id="browser"></div>
+          <div style="flex:1;min-width:0">
+            <div id="sgrid"></div>
+            <div id="clipEditor" hidden></div>
+            <div id="aux"></div>
+          </div>
+        </div>
       </div>
       <div id="arr" hidden>
         <div class="aheader">
@@ -651,6 +662,38 @@ $('#sgrid').addEventListener('click', e => {
   if (act === 'fxtoggle') { const f = tr.fx.find(x => x.id === b.dataset.fxid); if (!f) return; f.on = !f.on; rebuildFx(tr); b.classList.toggle('on', f.on); return op({ k: 'fxSet', t: id, id: f.id, on: f.on }); }
 });
 $('#addTrack').onclick = () => { const inst = $('#newInst').value; op({ k: 'addTrack', inst, name: LABEL[inst] }); };
+
+// ---- biblioteca lateral de sons (reaproveita o catálogo INSTS) ----
+function renderBrowser(filter) {
+  const q = (filter || '').trim().toLowerCase();
+  const box = $('#browser');
+  let h = '<input type="text" id="browserSearch" placeholder="Buscar som…" value="' + esc(filter || '') + '">';
+  INSTS.forEach(([kind, label, items]) => {
+    const list = items.filter(i => !q || i[1].toLowerCase().includes(q) || i[0].toLowerCase().includes(q));
+    if (!list.length) return;
+    h += `<details open><summary>${esc(label)}</summary>` + list.map(i =>
+      `<div class="snd" data-inst="${i[0]}" data-kind="${kind}" title="Clique para ouvir · duplo clique para usar no próximo canal">
+        <span class="play">▶</span><span>${esc(i[1])}</span></div>`).join('') + '</details>';
+  });
+  box.innerHTML = h;
+  $('#browserSearch').oninput = e => renderBrowser(e.target.value);
+}
+function previewSound(kind, inst) {
+  if (!ctx) return; ctx.resume();
+  const vg = ctx.createGain(); vg.gain.value = 0.7; vg.connect(master);
+  const t = ctx.currentTime + 0.005;
+  if (kind === 'drum') drum(inst, 0, t, vg);
+  else synth({ inst, release: 0.2 }, 60, t, 0.3, vg);
+}
+$('#browser').addEventListener('click', e => {
+  const el = e.target.closest('.snd'); if (!el) return;
+  previewSound(el.dataset.kind, el.dataset.inst);
+});
+$('#browser').addEventListener('dblclick', e => {
+  const el = e.target.closest('.snd'); if (!el) return;
+  const sel = $('#newInst'); if (sel) { sel.value = el.dataset.inst; }
+});
+renderBrowser('');
 
 // ---- editor do clipe (piano roll) ----
 function renderClipEditor() {
