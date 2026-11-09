@@ -1,0 +1,920 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SyncBeat Studio</title>
+<style>
+:root{--bg:#07080a;--p:#12151a;--p2:#1a1f27;--p3:#20273188;--tx:#e8ecf1;--mu:#8a94a3;--ac:#4cc9f0;--on:#ff5d73}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:13px system-ui,sans-serif}
+button,input,select{font:inherit;color:inherit}
+button,.btn{background:var(--p2);border:1px solid #2a313c;border-radius:6px;padding:5px 10px;cursor:pointer}
+button:hover,.btn:hover{border-color:var(--ac)}button.on{background:var(--ac);color:#000}
+button.rec.on{background:var(--on);color:#fff}button.solo.on{background:#ffd166;color:#000}
+input[type=text],input[type=number],select{background:var(--p2);border:1px solid #2a313c;border-radius:6px;padding:6px}
+option,optgroup{background:#1a1f27;color:#e8ecf1}
+small,.mu{color:var(--mu)}a{color:var(--ac)}
+#lobby{max-width:420px;margin:12vh auto;padding:24px;background:var(--p);border-radius:12px;display:grid;gap:12px}
+#lobby h1{margin:0}
+#app{display:grid;grid-template-rows:auto auto 1fr;height:100vh}
+#app.ro #sess,#app.ro #arr,#app.ro header .edit{pointer-events:none;opacity:.6}
+header{display:flex;gap:8px;align-items:center;padding:8px 12px;background:var(--p);flex-wrap:wrap}
+header b{font-size:15px}
+.tabs{display:flex;gap:2px;background:var(--p2);border-radius:7px;padding:2px}
+.tabs button{border:none;background:transparent;border-radius:5px}.tabs button.on{background:var(--ac);color:#000}
+#body{display:grid;grid-template-columns:1fr 250px;min-height:0}
+main{overflow:auto;padding:10px}
+aside{background:var(--p);display:flex;flex-direction:column;min-height:0;border-left:1px solid #222}
+#users{padding:8px;border-bottom:1px solid #222;display:grid;gap:5px}
+.u{display:flex;align-items:center;gap:6px}.dot{width:9px;height:9px;border-radius:50%;flex:none}
+.badge{font-size:10px;color:var(--mu)}.u button{padding:2px 6px;font-size:10px;margin-left:auto}
+#log{flex:1;overflow:auto;padding:8px;display:grid;gap:3px;align-content:start;font-size:12px}
+#chat{margin:8px;width:calc(100% - 16px)}
+/* ---- sessão ---- */
+#sgrid{display:grid;gap:4px;align-items:center}
+.sc-h{display:flex;flex-direction:column;align-items:center;gap:2px;background:var(--p);border-radius:6px;padding:4px 2px}
+.sc-h button{padding:2px 6px;font-size:11px}
+.trow{display:contents}
+.thdr{background:var(--p);border-radius:8px;padding:6px;display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.thdr .nm{width:92px;font-weight:600;padding:5px}
+.cdot{width:10px;height:10px;border-radius:3px;flex:none}
+.cell{background:var(--p);border-radius:6px;min-height:46px;display:flex;align-items:center;justify-content:center;padding:4px;position:relative}
+.cell .clipbtn{width:100%;height:100%;border-radius:5px;border:none;color:#06080c;font-size:11px;font-weight:600;padding:4px;cursor:pointer;text-align:left;min-height:38px}
+.cell .clipbtn.playing{box-shadow:0 0 0 2px #fff inset}
+.cell .mk{position:absolute;top:2px;right:2px;font-size:9px;background:#0009;border-radius:3px;padding:0 3px;cursor:pointer;color:#fff}
+.cell .new{width:100%;height:38px;border:1px dashed #2a313c;border-radius:5px;background:none;color:var(--mu);cursor:pointer}
+.cell .new:hover{border-color:var(--ac);color:var(--ac)}
+.mixrow{grid-column:1/-1;background:#0d1015;border-radius:8px;padding:8px;display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;margin:-2px 0 4px}
+.mixcol{display:flex;flex-direction:column;gap:4px;min-width:150px}
+.mixcol b{font-size:11px;color:var(--mu);font-weight:600}
+.mixcol label{display:flex;gap:6px;align-items:center;font-size:11px}
+.mixcol input[type=range]{width:90px}
+.fxchip{display:flex;gap:5px;align-items:center;background:var(--p2);border-radius:5px;padding:3px 6px;font-size:11px}
+.fxchip input[type=range]{width:50px}
+#clipEditor{margin-top:10px;background:var(--p);border-radius:10px;padding:10px}
+.rollbox{margin-top:6px;max-height:260px;overflow:auto;border-radius:6px;background:#0d1015}
+.rollwrap{position:relative;display:inline-block}
+.rollwrap canvas{display:block;touch-action:none;cursor:crosshair}
+.ph{position:absolute;top:0;bottom:0;left:0;width:2px;background:rgba(255,255,255,.7);pointer-events:none;display:none}
+/* ---- arranjo ---- */
+.lane{display:flex;margin-bottom:3px;align-items:flex-start}
+.lanehdr{width:150px;flex:none;background:var(--p);border-radius:6px 0 0 6px;padding:6px;display:flex;flex-direction:column;gap:4px}
+.lanehdr .nm{font-weight:600;font-size:12px}
+.lanebody{background:#0d1015;border-radius:0 6px 6px 0;position:relative;flex:1;overflow:hidden}
+.lanewrap{position:relative}
+.lanebody canvas{display:block;cursor:pointer}
+.autocanvas{display:block;cursor:crosshair;border-top:1px solid #1c232e}
+.aheader{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+.pick{position:absolute;background:var(--p2);border:1px solid var(--ac);border-radius:6px;padding:4px;z-index:5;display:grid;gap:3px}
+.pick button{text-align:left;font-size:11px}
+#aux{margin-top:10px;background:var(--p);border-radius:10px;padding:10px;display:flex;gap:10px;flex-wrap:wrap}
+.auxcard{background:#0d1015;border-radius:8px;padding:8px;min-width:170px;display:flex;flex-direction:column;gap:5px}
+.auxcard label{display:flex;gap:6px;align-items:center;font-size:11px}
+@media(max-width:800px){#body{grid-template-columns:1fr}aside{display:none}}
+</style>
+</head>
+<body>
+<div id="lobby">
+  <h1>SyncBeat Studio</h1>
+  <small>Produza música ao vivo, em conjunto, na mesma sala.</small>
+  <input id="name" type="text" placeholder="Seu nome de produtor" maxlength="24">
+  <input id="room" type="text" placeholder="Código da sala" maxlength="32">
+  <button id="go">Entrar na sala</button>
+  <small id="err" style="color:#ff5d73"></small>
+  <small>Ao entrar você aceita os <a href="/termos">Termos</a> e a <a href="/privacidade">Privacidade</a>. Seu IP fica visível aos outros da sala (conexão direta).</small>
+</div>
+
+<div id="app" hidden>
+  <header>
+    <b>SyncBeat</b><span class="mu">sala <span id="rname"></span></span>
+    <button id="copy">Copiar convite</button>
+    <div class="tabs"><button id="tabSess" class="on">🎛 Sessão</button><button id="tabArr">📈 Arranjo</button></div>
+    <span class="edit" style="display:flex;gap:6px;align-items:center">
+      <button id="play">▶ Play</button><button id="stop">■ Stop</button>
+      BPM <input id="bpm" type="number" min="60" max="200" style="width:56px">
+      Quant <select id="quant"><option value="0">livre</option><option value="4">1 tempo</option><option value="16" selected>1 compasso</option></select>
+    </span>
+    <button id="rec">● REC</button>
+  </header>
+  <div id="body">
+    <main>
+      <div id="sess">
+        <div class="aheader">
+          <select id="newInst"></select><button id="addTrack">+ Canal</button>
+          <small class="mu">Clique num clipe para tocar · ✎ para editar · + cria um clipe novo · duplo clique em um controle restaura o padrão</small>
+        </div>
+        <div id="sgrid"></div>
+        <div id="clipEditor" hidden></div>
+        <div id="aux"></div>
+      </div>
+      <div id="arr" hidden>
+        <div class="aheader">
+          <button id="loopToggle">🔁 Loop</button>
+          <label>de <input id="loopS" type="number" min="0" style="width:60px"> a <input id="loopE" type="number" min="1" style="width:60px"> (passos)</label>
+          <label>Início <input id="arrStart" type="number" min="0" style="width:70px"></label>
+          <small class="mu">Clique vazio: escolher clipe · arraste: mover · borda direita: redimensionar · botão direito: remover · ▸ Automação abre a curva</small>
+        </div>
+        <div id="lanes"></div>
+      </div>
+    </main>
+    <aside>
+      <div id="users"></div>
+      <div id="log"></div>
+      <input id="chat" type="text" placeholder="Chat…" maxlength="300">
+    </aside>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+// ---------- catálogo de instrumentos ----------
+const INSTS = [
+  ['synth', 'Sintetizadores', [['saw-bass', 'Baixo Saw'], ['sub-bass', 'Sub Bass'], ['fm-bass', 'Baixo FM'], ['acid', 'Acid 303'], ['square-lead', 'Lead Square'], ['supersaw', 'Supersaw'], ['pluck', 'Pluck'], ['pad', 'Pad'], ['strings', 'Cordas'], ['brass', 'Metais'], ['organ', 'Órgão'], ['bell', 'Sino (FM)'], ['epiano', 'E-Piano (FM)'], ['marimba', 'Marimba'], ['flute', 'Flauta']]],
+  ['drum', 'Baterias', [['kit-808', 'Kit 808'], ['kit-punchy', 'Kit Punchy'], ['kit-lofi', 'Kit Lo-fi'], ['kit-trap', 'Kit Trap']]],
+  ['sampler', 'Sampler', [['sample', 'Meu sample (arquivo)']]],
+];
+const KIND = {}, LABEL = {};
+INSTS.forEach(g => g[2].forEach(i => { KIND[i[0]] = g[0]; LABEL[i[0]] = i[1]; }));
+const instOpts = sel => INSTS.map(g => `<optgroup label="${g[1]}">${g[2].map(i => `<option value="${i[0]}"${i[0] === sel ? ' selected' : ''}>${i[1]}</option>`).join('')}</optgroup>`).join('');
+const DRUMS = ['Kick', 'Snare', 'Clap', 'Hat fechado', 'Hat aberto', 'Tom grave', 'Tom agudo', 'Perc'];
+const LO = 36, HI = 84, CW = 20, RH = 13, KW = 58, ACW = 5, BAR = 16;
+const NOTE_N = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'], BLACK = [1, 3, 6, 8, 10];
+const TC = ['#ff5d73', '#4cc9f0', '#ffd166', '#06d6a0', '#c77dff', '#ff9e4a', '#9bf6ff', '#f15bb5'];
+const pname = p => NOTE_N[p % 12] + (Math.floor(p / 12) - 1);
+const FXDEF = { eq: { low: [-12, 12, 0], mid: [-12, 12, 0], high: [-12, 12, 0] }, comp: { thr: [-60, 0, -18], ratio: [1, 20, 4], gain: [0, 12, 0] }, dist: { drive: [0, 1, .4], mix: [0, 1, .5] }, filter: { type: [0, 2, 0], freq: [40, 16000, 2000], q: [.3, 12, 1] } };
+const FXLABEL = { eq: 'EQ 3 bandas', comp: 'Compressor', dist: 'Distorção', filter: 'Filtro' };
+const AUXDEF = { reverb: { decay: [.3, 6, 2.4], tone: [800, 16000, 6000] }, delay: { div: [1, 8, 3], fb: [0, .9, .38], tone: [500, 12000, 3500] } };
+const AUTO_LIM = { vol: [0, 1], pan: [-1, 1] };
+
+let ws, me = {}, S, hostId, room, ctx, master;
+let recDest = null, mr = null, chunks = [];
+const peers = new Map(), tg = {}, auxNodes = {}, samples = new Map(), buffers = {};
+let offset = 0, bestRtt = 1e9, nextN = 0, noiseBuf = null;
+const send = o => ws && ws.readyState === 1 && ws.send(JSON.stringify(o));
+const serverNow = () => Date.now() + offset;
+const stepMs = () => 15000 / S.bpm;
+const track = id => S.tracks.find(t => t.id === id);
+const clipById = (tr, id) => tr && Object.values(tr.clips).find(c => c.id === id);
+const clipOfScene = (tr, sc) => tr && tr.clips[sc];
+const rowsOf = tr => tr.kind === 'drum' ? 8 : HI - LO + 1;
+const rowP = (tr, r) => tr.kind === 'drum' ? r : HI - r;
+const pRow = (tr, p) => tr.kind === 'drum' ? p : HI - p;
+let nseq = 0;
+const newId = () => me.id + '-' + (++nseq);
+
+// ---------- lobby ----------
+const urlRoom = (location.pathname.match(/^\/r\/([\w-]+)/) || [])[1];
+$('#room').value = urlRoom || Math.random().toString(36).slice(2, 8);
+try { $('#name').value = localStorage.getItem('sb.name') || ''; } catch {}
+$('#newInst').innerHTML = instOpts('saw-bass');
+$('#go').onclick = () => {
+  const name = $('#name').value.trim() || 'Produtor';
+  room = $('#room').value.trim();
+  if (!/^[\w-]{3,32}$/.test(room)) return $('#err').textContent = 'Código inválido (3–32 letras/números).';
+  try { localStorage.setItem('sb.name', name); } catch {}
+  initAudio();
+  connect(name);
+};
+
+// ================= ÁUDIO =================
+function makeIR(sec) {
+  const n = Math.max(1, Math.floor(ctx.sampleRate * sec)), b = ctx.createBuffer(2, n, ctx.sampleRate);
+  for (let c = 0; c < 2; c++) { const d = b.getChannelData(c); for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 3); }
+  return b;
+}
+function initAudio() {
+  ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
+  ctx.resume();
+  master = ctx.createGain(); master.gain.value = 0.85;
+  const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -6; comp.ratio.value = 3;
+  master.connect(comp); comp.connect(ctx.destination);
+  recDest = ctx.createMediaStreamDestination(); comp.connect(recDest);
+  noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+  const d = noiseBuf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+}
+// ---- aux (retornos: reverb/delay) ----
+function ensureAux(ax) {
+  if (auxNodes[ax.id]) return updateAux(ax);
+  const inp = ctx.createGain(), out = ctx.createGain(), vg = ctx.createGain();
+  if (ax.type === 'reverb') {
+    const conv = ctx.createConvolver(); conv.buffer = makeIR(ax.p.decay);
+    const tone = ctx.createBiquadFilter(); tone.type = 'lowpass';
+    inp.connect(conv); conv.connect(tone); tone.connect(out);
+    auxNodes[ax.id] = { in: inp, out, vg, conv, tone, decay: ax.p.decay };
+  } else {
+    const dly = ctx.createDelay(2), fb = ctx.createGain(), tone = ctx.createBiquadFilter(); tone.type = 'lowpass';
+    inp.connect(dly); dly.connect(tone); tone.connect(fb); fb.connect(dly); dly.connect(out);
+    auxNodes[ax.id] = { in: inp, out, vg, dly, fb, tone };
+  }
+  out.connect(vg); vg.connect(master);
+  updateAux(ax);
+}
+function updateAux(ax) {
+  const n = auxNodes[ax.id]; if (!n) return;
+  n.vg.gain.value = ax.mute ? 0 : ax.vol;
+  if (ax.type === 'reverb') {
+    if (Math.abs((n.decay || 0) - ax.p.decay) > 0.05) { n.conv.buffer = makeIR(ax.p.decay); n.decay = ax.p.decay; }
+    n.tone.frequency.value = ax.p.tone;
+  } else {
+    n.dly.delayTime.value = Math.min(1.9, ax.p.div * stepMs() / 1000);
+    n.fb.gain.value = ax.p.fb; n.tone.frequency.value = ax.p.tone;
+  }
+}
+function dropAux(id) { const n = auxNodes[id]; if (n) { n.in.disconnect(); n.vg.disconnect(); delete auxNodes[id]; } }
+
+// ---- fx inseridos no canal ----
+function buildFxNode(f) {
+  if (f.type === 'eq') {
+    const lo = ctx.createBiquadFilter(); lo.type = 'lowshelf'; lo.frequency.value = 200;
+    const mid = ctx.createBiquadFilter(); mid.type = 'peaking'; mid.frequency.value = 1500; mid.Q.value = 1;
+    const hi = ctx.createBiquadFilter(); hi.type = 'highshelf'; hi.frequency.value = 6000;
+    lo.connect(mid); mid.connect(hi);
+    return { in: lo, out: hi, update: () => { lo.gain.value = f.p.low; mid.gain.value = f.p.mid; hi.gain.value = f.p.high; } };
+  }
+  if (f.type === 'comp') {
+    const c = ctx.createDynamicsCompressor(); c.knee.value = 6; c.attack.value = 0.004; c.release.value = 0.2;
+    const mk = ctx.createGain(); c.connect(mk);
+    return { in: c, out: mk, update: () => { c.threshold.value = f.p.thr; c.ratio.value = f.p.ratio; mk.gain.value = Math.pow(10, f.p.gain / 20); } };
+  }
+  if (f.type === 'dist') {
+    const ws2 = ctx.createWaveShaper(); ws2.oversample = '2x';
+    const inp = ctx.createGain(), dry = ctx.createGain(), wet = ctx.createGain(), mix = ctx.createGain();
+    inp.connect(dry); inp.connect(ws2); ws2.connect(wet); dry.connect(mix); wet.connect(mix);
+    return { in: inp, out: mix, update: () => {
+      const k = f.p.drive * 60 + .2, n = 1024, curve = new Float32Array(n);
+      for (let i = 0; i < n; i++) { const x = i * 2 / n - 1; curve[i] = Math.tanh(k * x) / Math.tanh(k); }
+      ws2.curve = curve; dry.gain.value = 1 - f.p.mix; wet.gain.value = f.p.mix;
+    } };
+  }
+  const bq = ctx.createBiquadFilter();
+  return { in: bq, out: bq, update: () => { bq.type = ['lowpass', 'highpass', 'bandpass'][f.p.type | 0] || 'lowpass'; bq.frequency.value = f.p.freq; bq.Q.value = f.p.q; } };
+}
+function rebuildFx(tr) {
+  const c = tg[tr.id]; if (!c) return;
+  c.f.disconnect(); (c.fxNodes || []).forEach(n => { n.in.disconnect(); n.out.disconnect(); });
+  c.fxNodes = tr.fx.map(f => { const n = buildFxNode(f); n.update(); return n; });
+  let prev = c.f;
+  c.fxNodes.forEach((n, i) => { if (tr.fx[i].on) { prev.connect(n.in); prev = n.out; } });
+  prev.connect(c.pn);
+}
+function updateFxNode(tr, id) {
+  const c = tg[tr.id]; if (!c) return;
+  const i = tr.fx.findIndex(f => f.id === id); if (i < 0 || !c.fxNodes[i]) return;
+  c.fxNodes[i].update();
+}
+
+// ---- cadeia de cada canal ----
+function makeChain(tr) {
+  if (tg[tr.id]) return;
+  const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.Q.value = 1;
+  const pn = ctx.createStereoPanner(), g = ctx.createGain();
+  pn.connect(g); g.connect(master);
+  tg[tr.id] = { f, pn, g, fxNodes: [], snd: {} };
+  rebuildFx(tr); applyChain(tr); syncSends(tr);
+}
+function applyChain(tr) {
+  const c = tg[tr.id]; if (!c) return;
+  c.f.frequency.value = tr.kind === 'drum' ? 20000 : tr.cutoff;
+  const anySolo = S.tracks.some(x => x.solo);
+  const silent = tr.mute || (anySolo && !tr.solo);
+  if (!auto.vol[tr.id]) c.g.gain.value = silent ? 0 : tr.vol;
+  else c.g.gain.value = silent ? 0 : c.g.gain.value; // automação cuida do valor; só zera se mudo/solo
+  if (!auto.pan[tr.id]) c.pn.pan.value = tr.pan || 0;
+}
+function dropChain(id) {
+  const c = tg[id]; if (!c) return;
+  c.f.disconnect(); c.pn.disconnect(); c.g.disconnect();
+  (c.fxNodes || []).forEach(n => { n.in.disconnect(); n.out.disconnect(); });
+  Object.values(c.snd).forEach(g => g.disconnect());
+  delete tg[id];
+}
+function syncSends(tr) {
+  const c = tg[tr.id]; if (!c) return;
+  Object.keys(tr.sends || {}).forEach(auxId => {
+    const s = tr.sends[auxId], ax = S.aux.find(a => a.id === auxId); if (!ax) return;
+    ensureAux(ax);
+    let g = c.snd[auxId]; if (!g) { g = ctx.createGain(); c.snd[auxId] = g; }
+    try { g.disconnect(); } catch {}
+    (s.pre ? c.pn : c.g).connect(g); g.connect(auxNodes[ax.id].in);
+    g.gain.value = s.on ? s.l : 0;
+  });
+  Object.keys(c.snd).forEach(id => { if (!tr.sends[id]) { c.snd[id].disconnect(); delete c.snd[id]; } });
+}
+
+// ---- síntese ----
+function noise(out, t, hp, dur, vol) {
+  const s = ctx.createBufferSource(); s.buffer = noiseBuf;
+  const f = ctx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = hp;
+  const g = ctx.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  s.connect(f); f.connect(g); g.connect(out); s.start(t); s.stop(t + dur + 0.02);
+}
+function osc(out, t, type, f0, f1, dur, vol) {
+  const o = ctx.createOscillator(), g = ctx.createGain(); o.type = type;
+  o.frequency.setValueAtTime(f0, t); if (f1) o.frequency.exponentialRampToValueAtTime(f1, t + dur * 0.4);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  o.connect(g); g.connect(out); o.start(t); o.stop(t + dur + 0.02);
+}
+const KITS = {
+  'kit-808': { k: [160, 42, .55], s: [1800, .2, 180, .12], h: [8000, .045], o: [7000, .3], t: [110, 190], r: 800, c: 1500 },
+  'kit-punchy': { k: [210, 55, .3], s: [1200, .15, 230, .1], h: [9500, .035], o: [8500, .2], t: [140, 230], r: 1100, c: 1800 },
+  'kit-lofi': { k: [120, 48, .38], s: [800, .22, 170, .15], h: [5500, .08], o: [5000, .4], t: [95, 160], r: 650, c: 1000 },
+  'kit-trap': { k: [110, 35, .9], s: [2500, .12, 200, .06], h: [10000, .025], o: [9000, .18], t: [120, 200], r: 1400, c: 2000 },
+};
+function drum(inst, p, t, out) {
+  const K = KITS[inst] || KITS['kit-808'];
+  switch (p) {
+    case 0: osc(out, t, 'sine', K.k[0], K.k[1], K.k[2], 1); break;
+    case 1: noise(out, t, K.s[0], K.s[1], .7); osc(out, t, 'triangle', K.s[2], K.s[2] * .65, K.s[3], .5); break;
+    case 2: [0, .012, .024].forEach(d => noise(out, t + d, K.c, .04, .5)); noise(out, t + .036, K.c, .18, .5); break;
+    case 3: noise(out, t, K.h[0], K.h[1], .4); break;
+    case 4: noise(out, t, K.o[0], K.o[1], .35); break;
+    case 5: osc(out, t, 'sine', K.t[0] * 1.6, K.t[0], .35, .8); break;
+    case 6: osc(out, t, 'sine', K.t[1] * 1.6, K.t[1], .28, .8); break;
+    case 7: osc(out, t, 'square', K.r, K.r * .8, .06, .25); break;
+  }
+}
+function env(g, t, a, peak, hold, rel) {
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + a);
+  const end = Math.max(t + a + 0.001, hold);
+  g.gain.setValueAtTime(peak, end); g.gain.exponentialRampToValueAtTime(0.0001, end + rel);
+  return end + rel + 0.05;
+}
+function synth(tr, p, t, dur, out) {
+  const f = 440 * 2 ** ((p - 69) / 12), rel = Math.max(0.03, tr.release || 0.15), hold = t + dur;
+  const g = ctx.createGain(), oscs = []; g.connect(out);
+  const mk = (type, freq, det = 0, gain = 1) => {
+    const o = ctx.createOscillator(); o.type = type; o.frequency.value = freq; o.detune.value = det;
+    if (gain !== 1) { const x = ctx.createGain(); x.gain.value = gain; o.connect(x); x.connect(g); } else o.connect(g);
+    oscs.push(o); return o;
+  };
+  const via = (type, freq, det, dest) => { const o = ctx.createOscillator(); o.type = type; o.frequency.value = freq; o.detune.value = det; o.connect(dest); oscs.push(o); return o; };
+  const flt = q => { const x = ctx.createBiquadFilter(); x.type = 'lowpass'; x.Q.value = q; x.connect(g); return x; };
+  const fm = (ratio, depth, decay, peak) => {
+    const car = mk('sine', f), mod = ctx.createOscillator(), mg = ctx.createGain();
+    mod.frequency.value = f * ratio; mod.connect(mg); mg.connect(car.frequency); oscs.push(mod);
+    mg.gain.setValueAtTime(f * depth, t); mg.gain.exponentialRampToValueAtTime(1, t + decay);
+    g.gain.setValueAtTime(peak, t); g.gain.exponentialRampToValueAtTime(0.0001, t + decay + rel);
+    return t + decay + rel + 0.1;
+  };
+  let stop;
+  switch (tr.inst) {
+    case 'sub-bass': mk('sine', f); mk('triangle', f, 0, .3); stop = env(g, t, .008, .55, hold, rel); break;
+    case 'fm-bass': { const car = mk('sine', f), mod = ctx.createOscillator(), mg = ctx.createGain(); mod.frequency.value = f; mod.connect(mg); mg.connect(car.frequency); oscs.push(mod); mg.gain.setValueAtTime(f * 1.6, t); mg.gain.exponentialRampToValueAtTime(f * .35, t + .3); stop = env(g, t, .004, .45, hold, rel); break; }
+    case 'acid': { const x = flt(12); x.frequency.setValueAtTime(Math.min(f * 10, 12000), t); x.frequency.exponentialRampToValueAtTime(Math.max(f * 1.5, 120), t + .22); via('sawtooth', f, 0, x); stop = env(g, t, .003, .3, hold, rel); break; }
+    case 'square-lead': mk('square', f, -7, .5); mk('square', f, 7, .5); stop = env(g, t, .01, .2, hold, rel); break;
+    case 'supersaw': [-18, -9, 0, 9, 18].forEach(d => mk('sawtooth', f, d, .22)); stop = env(g, t, .02, .2, hold, rel); break;
+    case 'pluck': mk('sawtooth', f); mk('triangle', f * 2, 0, .4); g.gain.setValueAtTime(.4, t); g.gain.exponentialRampToValueAtTime(0.0001, t + .15 + rel); stop = t + .2 + rel; break;
+    case 'pad': mk('sawtooth', f, -12); mk('sawtooth', f, 12); mk('triangle', f / 2, 0, .6); stop = env(g, t, .25, .12, hold, rel + .4); break;
+    case 'strings': [-8, 0, 8].forEach(d => mk('sawtooth', f, d, .4)); stop = env(g, t, .18, .13, hold, rel + .2); break;
+    case 'brass': { const x = flt(2); x.frequency.setValueAtTime(f * 1.5, t); x.frequency.exponentialRampToValueAtTime(Math.min(f * 7, 14000), t + .1); via('sawtooth', f, 0, x); via('sawtooth', f, 6, x); stop = env(g, t, .05, .2, hold, rel); break; }
+    case 'organ': mk('sine', f, 0, .6); mk('sine', f * 2, 0, .35); mk('sine', f * 3, 0, .2); stop = env(g, t, .01, .3, hold, rel); break;
+    case 'bell': stop = fm(3.5, 2, 1.2, .35); break;
+    case 'epiano': stop = fm(1, .8, .5, .4); break;
+    case 'marimba': mk('sine', f); mk('sine', f * 4, 0, .25); g.gain.setValueAtTime(.5, t); g.gain.exponentialRampToValueAtTime(0.0001, t + .3 + rel); stop = t + .4 + rel; break;
+    case 'flute': { const c0 = mk('sine', f); mk('triangle', f * 2, 0, .12); const lfo = ctx.createOscillator(), lg = ctx.createGain(); lfo.frequency.value = 5; lg.gain.value = f * .008; lfo.connect(lg); lg.connect(c0.frequency); oscs.push(lfo); stop = env(g, t, .08, .35, hold, rel); break; }
+    default: mk('sawtooth', f); mk('sine', f / 2, 0, .6); stop = env(g, t, .005, .3, hold, rel);
+  }
+  oscs.forEach(o => { o.start(t); o.stop(stop); });
+  return { release() { const n = ctx.currentTime; try { g.gain.cancelScheduledValues(n); g.gain.setValueAtTime(Math.max(g.gain.value, 0.0002), n); g.gain.exponentialRampToValueAtTime(0.0001, n + rel); } catch {} oscs.forEach(o => { try { o.stop(n + rel + 0.05); } catch {} }); } };
+}
+function trig(tr, p, t, dur, vel = 1) {
+  const c = tg[tr.id]; if (!c) return;
+  const vg = ctx.createGain(); vg.gain.value = Math.min(1.5, Math.max(0, vel)); vg.connect(c.f);
+  if (tr.kind === 'drum') return drum(tr.inst, p, t, vg);
+  if (tr.kind === 'sampler') {
+    const b = buffers[tr.sampleId]; if (!b) return;
+    const s = ctx.createBufferSource(); s.buffer = b; s.playbackRate.value = 2 ** ((p - 60) / 12);
+    s.connect(vg); s.start(t); return;
+  }
+  return synth(tr, p, t, dur, vg);
+}
+const preview = (tr, p) => { if (ctx) { ctx.resume(); trig(tr, p, ctx.currentTime + 0.005, 0.25); } };
+
+// ---- motor de reprodução: Sessão (clipes lançados) tem prioridade sobre o Arranjo ----
+function sessionActive(tr, g) {
+  let cur; for (const e of tr.ev) if (e.at <= g && (!cur || e.at >= cur.at)) cur = e;
+  if (!cur) return undefined; // não lançado: segue o arranjo
+  if (cur.sc === null) return null; // parado explicitamente
+  const clip = clipOfScene(tr, cur.sc); if (!clip) return null;
+  return { clip, off: Math.floor(g - cur.at) % clip.len, launchedAt: cur.at };
+}
+function arrangementActive(tr, g) {
+  const gi = Math.floor(g), blk = (tr.arr || []).find(a => gi >= a.s && gi < a.s + a.l);
+  if (!blk) return null;
+  const clip = clipById(tr, blk.clip); if (!clip) return null;
+  return { clip, off: (gi - blk.s) % clip.len, blk };
+}
+function trackStepInfo(tr, g) { const s = sessionActive(tr, g); return s === undefined ? arrangementActive(tr, g) : s; }
+function playStep(g, t, stepSec) {
+  const anySolo = S.tracks.some(x => x.solo);
+  S.tracks.forEach(tr => {
+    if (tr.mute || (anySolo && !tr.solo)) return;
+    const info = trackStepInfo(tr, g); if (!info) return;
+    info.clip.notes.forEach(n => { if (n.s === info.off) trig(tr, n.p, t, Math.min(n.l, info.clip.len - n.s) * stepSec, (n.v || 100) / 100); });
+  });
+}
+setInterval(() => {
+  if (!ctx || !S) return;
+  if (S.playing) {
+    const ms = stepMs(), horizon = serverNow() + 150;
+    for (;;) {
+      const ts = S.startAt + nextN * ms; if (ts > horizon) break;
+      const dt = (ts - serverNow()) / 1000;
+      if (dt > -0.03) playStep(nextN, ctx.currentTime + Math.max(0, dt), ms / 1000);
+      nextN++;
+    }
+  }
+  tickAutomation();
+}, 25);
+function resetPos() { nextN = Math.max(0, Math.ceil((serverNow() - S.startAt) / stepMs())); }
+function globalStep() { return S.playing ? (serverNow() - S.startAt) / stepMs() : null; }
+
+// ---- automação (curva de pontos ao longo do arranjo, aplicada em tempo real) ----
+const auto = { vol: {}, pan: {} }; // true enquanto houver pontos para aquele canal/parâmetro
+function interp(pts, g) {
+  if (!pts || !pts.length) return null;
+  if (g <= pts[0].s) return pts[0].v;
+  if (g >= pts[pts.length - 1].s) return pts[pts.length - 1].v;
+  for (let i = 1; i < pts.length; i++) if (g <= pts[i].s) {
+    const a = pts[i - 1], b = pts[i], t = (g - a.s) / (b.s - a.s || 1);
+    return a.v + (b.v - a.v) * t;
+  }
+  return pts[pts.length - 1].v;
+}
+function tickAutomation() {
+  const g = globalStep(); if (g == null) return;
+  S.tracks.forEach(tr => {
+    const c = tg[tr.id]; if (!c) return;
+    const anySolo = S.tracks.some(x => x.solo), silent = tr.mute || (anySolo && !tr.solo);
+    const vv = interp(tr.autom.vol, g);
+    if (vv != null) { auto.vol[tr.id] = true; c.g.gain.setTargetAtTime(silent ? 0 : vv, ctx.currentTime, 0.02); } else auto.vol[tr.id] = false;
+    const pv = interp(tr.autom.pan, g);
+    if (pv != null) { auto.pan[tr.id] = true; c.pn.pan.setTargetAtTime(pv, ctx.currentTime, 0.02); } else auto.pan[tr.id] = false;
+  });
+}
+
+// ---------- samples ----------
+async function onSample(s) {
+  samples.set(s.id, s);
+  try {
+    const bin = atob(s.data), u = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+    buffers[s.id] = await ctx.decodeAudioData(u.buffer);
+  } catch { addLog('Não consegui decodificar o sample "' + s.name + '".'); }
+  if (S) S.tracks.filter(t => t.kind === 'sampler').forEach(renderTrackRow);
+}
+function uploadSample(el) {
+  const f = el.files[0], forTrack = el.dataset.t; el.value = '';
+  if (!f || me.role !== 'producer') return;
+  if (f.size > 800000) return addLog('Sample grande demais (máx. ~800 KB). Use um trecho curto.');
+  const r = new FileReader();
+  r.onload = () => send({ type: 'sample', name: f.name.replace(/\.[^.]+$/, ''), data: String(r.result).split(',')[1], forTrack });
+  r.readAsDataURL(f);
+}
+
+// ================= REDE =================
+function connect(name) {
+  ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host);
+  ws.onopen = () => {
+    send({ type: 'join', room, name });
+    for (let i = 0; i < 8; i++) setTimeout(() => send({ type: 'ping', t0: Date.now() }), i * 120);
+    setInterval(() => send({ type: 'ping', t0: Date.now() }), 10000);
+  };
+  ws.onclose = () => { if (S) addLog('— conexão perdida, recarregue a página —'); };
+  ws.onmessage = e => handle(JSON.parse(e.data));
+}
+function handle(m) {
+  switch (m.type) {
+    case 'error': S ? addLog('⚠ ' + m.msg) : $('#err').textContent = m.msg; break;
+    case 'pong': { const t1 = Date.now(), rtt = t1 - m.t0; if (rtt <= bestRtt) { bestRtt = rtt; offset = m.ts + rtt / 2 - t1; } break; }
+    case 'welcome':
+      if (m.v !== 7) { ws.onclose = null; ws.close(); $('#err').textContent = 'O servidor está desatualizado. Feche o terminal antigo (Ctrl+C), rode "npm start" na pasta nova e recarregue a página (Ctrl+F5).'; return; }
+      me = m.me; hostId = m.hostId; S = m.state;
+      m.peers.forEach(p => peers.set(p.id, p)); peers.set(me.id, me);
+      $('#lobby').hidden = true; $('#app').hidden = false; $('#rname').textContent = room;
+      history.replaceState(null, '', '/r/' + room);
+      bootState(); renderUsers(); break;
+    case 'sample': onSample(m.sample); break;
+    case 'peer-join': peers.set(m.peer.id, m.peer); renderUsers(); addLog(m.peer.name + ' entrou'); break;
+    case 'peer-leave': { const p = peers.get(m.id); peers.delete(m.id); hostId = m.hostId; renderUsers(); if (p) addLog(p.name + ' saiu'); break; }
+    case 'role': { const p = peers.get(m.id); if (p) p.role = m.role; if (m.id === me.id) me.role = m.role; renderUsers(); break; }
+    case 'op': applyOp(m.op); break;
+    case 'transport':
+      S.playing = m.playing; S.startAt = m.startAt; S.bpm = m.bpm; S.arrStart = m.arrStart; S.q = m.q; S.loop = m.loop;
+      Object.entries(m.evs).forEach(([tid, ev]) => { const tr = track(tid); if (tr) tr.ev = ev; });
+      resetPos(); syncTransportUI(); S.aux.forEach(updateAux); renderSession(); break;
+    case 'chat': addLog(m.name + ': ' + m.text, m.color); break;
+  }
+}
+const op = o => send({ type: 'op', op: o });
+function bootState() {
+  Object.keys(tg).forEach(dropChain); Object.keys(auxNodes).forEach(dropAux);
+  S.aux.forEach(ensureAux); S.tracks.forEach(makeChain);
+  if (!focusClip || !track(focusClip.t)) focusClip = null;
+  renderAll(); syncTransportUI(); resetPos();
+}
+function fullTrack(t) { makeChain(t); applyChain(t); rebuildFx(t); syncSends(t); }
+function applyOp(o) {
+  if (o.k === 'track') { const i = S.tracks.findIndex(x => x.id === o.track.id); if (i >= 0) S.tracks[i] = o.track; else S.tracks.push(o.track); fullTrack(o.track); renderSession(); renderArr(); return; }
+  if (o.k === 'del') { S.tracks = S.tracks.filter(t => t.id !== o.t); dropChain(o.t); if (focusClip && focusClip.t === o.t) focusClip = null; renderSession(); renderArr(); return; }
+  if (o.k === 'state') { S = o.state; bootState(); if (o.sel) { focusClip = { t: o.sel.t, sc: o.sel.sc }; renderClipEditor(); } return; }
+  if (o.k === 'scenes') { S.scenes = o.scenes; renderSession(); renderArr(); return; }
+  if (o.k === 'aux') { S.aux = o.aux; S.aux.forEach(ensureAux); Object.keys(auxNodes).forEach(id => { if (!S.aux.some(a => a.id === id)) dropAux(id); }); S.tracks.forEach(syncSends); renderAux(); return; }
+  if (o.k === 'auxset') { const ax = S.aux.find(a => a.id === o.id); if (!ax) return; ax.vol = o.vol; ax.mute = o.mute; ax.name = o.name; ax.p = o.p; updateAux(ax); renderAux(); return; }
+  const tr = track(o.t); if (!tr) return;
+  switch (o.k) {
+    case 'nb': { const cl = clipOfScene(tr, o.sc) || clipById(tr, o.sc); if (!cl) return; applyNb(cl, o); break; }
+    case 'arr': tr.arr = o.arr; renderArr(); break;
+    case 'autom': tr.autom[o.param] = o.points; renderAutoLane(tr); break;
+    case 'send': { tr.sends[o.aux] = o.send; syncSends(tr); renderSession(); break; }
+    case 'fx': { tr.fx = o.fx; rebuildFx(tr); renderSession(); break; }
+    case 'fxset': { const f = tr.fx.find(x => x.id === o.id); if (f) { f.on = o.on; f.p = o.p; } rebuildFx(tr); renderSession(); break; }
+    case 'param': { tr[o.p] = o.v; applyChain(tr); renderSession(); renderArr(); break; }
+  }
+}
+function applyNb(cl, d) {
+  const del = new Set((d.del || []).map(x => x.id || x));
+  if (del.size) cl.notes = cl.notes.filter(n => !del.has(n.id));
+  (d.mod || []).forEach(m => { const n = cl.notes.find(x => x.id === m.id); if (n) Object.assign(n, { s: m.s, l: m.l, p: m.p, v: m.v }); });
+  (d.add || []).forEach(a => { if (!cl.notes.some(x => x.id === a.id)) cl.notes.push(a); });
+  if (focusClip && clipById(track(focusClip.t), cl.id) === cl) drawRoll(track(focusClip.t), cl);
+}
+
+// ================= VISTAS =================
+let view = 'sess';
+$('#tabSess').onclick = () => setView('sess'); $('#tabArr').onclick = () => setView('arr');
+function setView(v) { view = v; $('#tabSess').classList.toggle('on', v === 'sess'); $('#tabArr').classList.toggle('on', v === 'arr'); $('#sess').hidden = v !== 'sess'; $('#arr').hidden = v !== 'arr'; }
+function renderAll() { renderSession(); renderArr(); renderAux(); renderClipEditor(); }
+
+// ---------------- SESSÃO ----------------
+let focusClip = null; // {t, sc}
+function renderSession() {
+  const grid = $('#sgrid');
+  grid.style.gridTemplateColumns = `190px repeat(${S.scenes.length}, 1fr) 70px`;
+  let h = `<div class="trow"><div></div>${S.scenes.map(sc => `
+    <div class="sc-h"><button data-act="launchScene" data-sc="${sc.id}" title="Lançar cena">▶</button>${S.scenes.length > 1 ? `<button data-act="delScene" data-sc="${sc.id}" title="Excluir cena">✕</button>` : ''}</div>`).join('')}
+    <div class="sc-h"><button data-act="addScene" title="Nova cena">+ Cena</button></div></div>`;
+  S.tracks.forEach(tr => { h += renderTrackRowHtml(tr); });
+  grid.innerHTML = h;
+  S.tracks.forEach(tr => updatePlayingMarks(tr));
+}
+function renderTrackRowHtml(tr) {
+  const c = TC[tr.ci % TC.length], dr = tr.kind === 'drum', smp = tr.kind === 'sampler', t = `data-t="${tr.id}"`;
+  let h = `<div class="trow" id="trow-${tr.id}"><div class="thdr">
+    <span class="cdot" style="background:${c}"></span>
+    <input type="text" class="nm" ${t} data-p="name" value="${esc(tr.name)}" maxlength="24">
+    <button ${t} data-act="mute" class="${tr.mute ? 'on' : ''}" title="Mudo">M</button>
+    <button ${t} data-act="solo" class="solo ${tr.solo ? 'on' : ''}" title="Solo">S</button>
+    <select ${t} data-p="inst" title="Instrumento" style="font-size:11px">${instOpts(tr.inst)}</select>`;
+  if (smp) h += `<select ${t} data-p="sampleId" style="font-size:11px"><option value="">— sample —</option>${[...samples.values()].map(s => `<option value="${s.id}"${s.id === tr.sampleId ? ' selected' : ''}>${esc(s.name)}</option>`).join('')}</select>
+    <label class="btn" title="Carregar áudio (máx. ~800 KB)">⬆<input type="file" accept="audio/*" ${t} data-act="upload" hidden></label>`;
+  h += `<button ${t} data-act="mix" title="Mixer: volume, pan, sends e efeitos">🎚 Mix</button>
+    <button ${t} data-act="delTrack" title="Excluir canal">✕</button></div>`;
+  S.scenes.forEach(sc => {
+    const cl = tr.clips[sc.id];
+    h += `<div class="cell" data-t="${tr.id}" data-sc="${sc.id}">` + (cl
+      ? `<button class="clipbtn" style="background:${c}" data-act="launch" data-t="${tr.id}" data-sc="${sc.id}">${esc(cl.name || 'Clipe')}<br><small style="opacity:.75">${cl.len} passos</small></button><span class="mk" data-act="edit" data-t="${tr.id}" data-sc="${sc.id}">✎</span><span class="mk" style="right:16px" data-act="delClip" data-t="${tr.id}" data-sc="${sc.id}">✕</span>`
+      : `<button class="new" data-act="newClip" data-t="${tr.id}" data-sc="${sc.id}">+</button>`) + `</div>`;
+  });
+  h += `<div class="cell"><button data-act="stopTrack" data-t="${tr.id}" title="Parar este canal">■</button></div></div>`;
+  if (mixOpen.has(tr.id)) h += renderMixRow(tr);
+  return h;
+}
+function renderTrackRow(tr) { const el = document.getElementById('trow-' + tr.id); if (el) el.outerHTML = renderTrackRowHtml(tr); else renderSession(); updatePlayingMarks(tr); }
+const mixOpen = new Set();
+function renderMixRow(tr) {
+  const t = `data-t="${tr.id}"`;
+  let sends = Object.values(S.aux).map(ax => `<label>${esc(ax.name)} <input type="range" min="0" max="1" step=".01" value="${(tr.sends[ax.id] || { l: 0 }).l}" ${t} data-aux="${ax.id}" data-act="send"></label>`).join('');
+  let fx = tr.fx.map(f => `<div class="fxchip"><button ${t} data-fxid="${f.id}" data-act="fxtoggle" class="${f.on ? 'on' : ''}" style="padding:2px 5px">${FXLABEL[f.type]}</button>
+    ${Object.keys(FXDEF[f.type]).map(k => `<label>${k} <input type="range" min="${FXDEF[f.type][k][0]}" max="${FXDEF[f.type][k][1]}" step="${(FXDEF[f.type][k][1] - FXDEF[f.type][k][0]) / 100}" value="${f.p[k]}" ${t} data-fxid="${f.id}" data-fxkey="${k}" data-act="fxset"></label>`).join('')}
+    <button ${t} data-fxid="${f.id}" data-act="fxdel" style="padding:2px 5px">✕</button></div>`).join('');
+  return `<div class="mixrow" data-t="${tr.id}">
+    <div class="mixcol"><b>Fader</b>
+      <label>Vol <input type="range" min="0" max="1" step=".01" value="${tr.vol}" ${t} data-p="vol"></label>
+      <label>Pan <input type="range" min="-1" max="1" step=".01" value="${tr.pan}" ${t} data-p="pan"></label>
+      ${tr.kind !== 'drum' ? `<label>Filtro <input type="range" min="100" max="16000" value="${tr.cutoff}" ${t} data-p="cutoff"></label><label>Release <input type="range" min=".03" max="2" step=".01" value="${tr.release}" ${t} data-p="release"></label>` : ''}
+    </div>
+    <div class="mixcol"><b>Sends</b>${sends || '<small class="mu">sem retornos</small>'}</div>
+    <div class="mixcol" style="min-width:260px"><b>Efeitos (inserido)</b>${fx}
+      <div style="display:flex;gap:4px;flex-wrap:wrap">${Object.keys(FXDEF).map(k => `<button ${t} data-fxtype="${k}" data-act="fxadd" style="font-size:10px;padding:3px 6px">+ ${FXLABEL[k]}</button>`).join('')}</div>
+    </div>
+  </div>`;
+}
+function updatePlayingMarks(tr) {
+  const g = globalStep(); if (g == null) return document.querySelectorAll(`#trow-${tr.id} .clipbtn`).forEach(b => b.classList.remove('playing'));
+  const info = trackStepInfo(tr, g);
+  document.querySelectorAll(`#trow-${tr.id} .clipbtn`).forEach(b => b.classList.toggle('playing', !!(info && info.clip.id === (clipOfScene(tr, b.closest('.cell').dataset.sc) || {}).id)));
+}
+function sendParam(el) {
+  const id = el.dataset.t, tr = track(id); if (!tr || me.role !== 'producer') return;
+  const p = el.dataset.p;
+  if (p === 'inst') return op({ k: 'inst', t: id, inst: el.value, sampleId: null });
+  if (p === 'sampleId') return op({ k: 'inst', t: id, inst: 'sample', sampleId: el.value || null });
+  const v = p === 'name' ? el.value : +el.value;
+  tr[p] = p === 'name' ? v : (p === 'vol' ? Math.min(1, Math.max(0, v)) : p === 'pan' ? Math.min(1, Math.max(-1, v)) : v);
+  applyChain(tr); op({ k: 'param', t: id, p, v });
+}
+$('#sgrid').addEventListener('input', e => { if (e.target.type === 'range') sendParam(e.target); });
+$('#sgrid').addEventListener('change', e => {
+  const el = e.target;
+  if (el.dataset.act === 'upload') return uploadSample(el);
+  if (el.dataset.act === 'send') { const id = el.dataset.t, tr = track(id); if (!tr) return; const cur = tr.sends[el.dataset.aux] || { l: 0, on: true, pre: false }; cur.l = +el.value; tr.sends[el.dataset.aux] = cur; syncSends(tr); return op({ k: 'send', t: id, aux: el.dataset.aux, l: cur.l }); }
+  if (el.dataset.act === 'fxset') { const tr = track(el.dataset.t), f = tr.fx.find(x => x.id === el.dataset.fxid); if (!f) return; f.p[el.dataset.fxkey] = +el.value; updateFxNode(tr, f.id); return op({ k: 'fxSet', t: tr.id, id: f.id, key: el.dataset.fxkey, v: +el.value }); }
+  if (el.dataset.p) sendParam(el);
+});
+$('#sgrid').addEventListener('dblclick', e => {
+  const el = e.target; if (el.type !== 'range') return;
+  const def = { vol: .8, pan: 0, cutoff: 4000, release: .2 }[el.dataset.p]; if (def === undefined) return;
+  el.value = def; sendParam(el);
+});
+$('#sgrid').addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const act = b.dataset.act, id = b.dataset.t, tr = id && track(id);
+  if (act === 'addScene') return op({ k: 'addScene' });
+  if (act === 'delScene') return confirm('Excluir esta cena para todos os canais?') && op({ k: 'delScene', sc: b.dataset.sc });
+  if (act === 'launchScene') return op({ k: 'launchScene', sc: b.dataset.sc });
+  if (me.role !== 'producer') return;
+  if (act === 'launch') return op({ k: 'launch', t: id, sc: b.dataset.sc });
+  if (act === 'stopTrack') return op({ k: 'launch', t: id, sc: null });
+  if (act === 'newClip') { op({ k: 'newClip', t: id, sc: b.dataset.sc, name: '', len: 16 }); focusClip = { t: id, sc: b.dataset.sc }; setTimeout(renderClipEditor, 60); return; }
+  if (act === 'edit') { focusClip = { t: id, sc: b.dataset.sc }; return renderClipEditor(); }
+  if (act === 'delClip') return confirm('Excluir este clipe?') && op({ k: 'delClip', t: id, sc: b.dataset.sc });
+  if (act === 'delTrack') return confirm('Excluir o canal "' + tr.name + '"? Vale para todos na sala.') && op({ k: 'del', t: id });
+  if (act === 'mute') { tr.mute = !tr.mute; applyChain(tr); b.classList.toggle('on', tr.mute); S.tracks.forEach(applyChain); return op({ k: 'param', t: id, p: 'mute', v: tr.mute }); }
+  if (act === 'solo') { tr.solo = !tr.solo; applyChain(tr); b.classList.toggle('on', tr.solo); S.tracks.forEach(applyChain); return op({ k: 'param', t: id, p: 'solo', v: tr.solo }); }
+  if (act === 'mix') { mixOpen.has(id) ? mixOpen.delete(id) : mixOpen.add(id); return renderSession(); }
+  if (act === 'fxadd') return op({ k: 'fxAdd', t: id, type: b.dataset.fxtype });
+  if (act === 'fxdel') return op({ k: 'fxDel', t: id, id: b.dataset.fxid });
+  if (act === 'fxtoggle') { const f = tr.fx.find(x => x.id === b.dataset.fxid); if (!f) return; f.on = !f.on; rebuildFx(tr); b.classList.toggle('on', f.on); return op({ k: 'fxSet', t: id, id: f.id, on: f.on }); }
+});
+$('#addTrack').onclick = () => { const inst = $('#newInst').value; op({ k: 'addTrack', inst, name: LABEL[inst] }); };
+
+// ---- editor do clipe (piano roll) ----
+function renderClipEditor() {
+  const box = $('#clipEditor');
+  if (!focusClip) { box.hidden = true; return; }
+  const tr = track(focusClip.t), cl = tr && clipOfScene(tr, focusClip.sc);
+  if (!tr || !cl) { box.hidden = true; focusClip = null; return; }
+  box.hidden = false;
+  box.innerHTML = `<div class="aheader"><b>Editando:</b> ${esc(tr.name)} · <input type="text" id="clipName" value="${esc(cl.name)}" maxlength="24" style="width:120px">
+    <label>Passos <input type="number" id="clipLen" min="1" max="128" value="${cl.len}" style="width:64px"></label>
+    <button id="clipDbl">×2</button><button id="clipDup">Duplicar p/ próxima cena</button><button id="clipDel">Excluir clipe</button>
+    <small class="mu">Clique/arraste cria nota · borda direita alonga · arraste move · clique apaga</small></div>
+    <div class="rollbox"><div class="rollwrap"><canvas id="rollcv"></canvas><div class="ph" id="rollph"></div></div></div>`;
+  $('#clipName').onchange = e => op({ k: 'clipProp', t: tr.id, sc: focusClip.sc, name: e.target.value });
+  $('#clipLen').onchange = e => { const v = Math.max(1, Math.min(128, +e.target.value | 0)); op({ k: 'clipProp', t: tr.id, sc: focusClip.sc, len: v }); };
+  $('#clipDbl').onclick = () => op({ k: 'dbl', t: tr.id, sc: focusClip.sc });
+  $('#clipDup').onclick = () => op({ k: 'dupClip', t: tr.id, sc: focusClip.sc });
+  $('#clipDel').onclick = () => { if (confirm('Excluir este clipe?')) { op({ k: 'delClip', t: tr.id, sc: focusClip.sc }); focusClip = null; renderClipEditor(); } };
+  bindRoll($('#rollcv'), tr, cl);
+  drawRoll(tr, cl);
+}
+function drawRoll(tr, cl) {
+  const cv = $('#rollcv'); if (!cv) return;
+  const rows = rowsOf(tr), drum = tr.kind === 'drum', len = cl.len;
+  const W = KW + len * CW, H = rows * RH, dpr = window.devicePixelRatio || 1;
+  if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); cv.style.width = W + 'px'; cv.style.height = H + 'px'; }
+  const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+  g.font = '10px system-ui'; g.textBaseline = 'middle';
+  for (let r = 0; r < rows; r++) {
+    const p = rowP(tr, r), blk = !drum && BLACK.includes(p % 12), y = r * RH;
+    g.fillStyle = blk ? '#141820' : '#1d2430'; g.fillRect(KW, y, len * CW, RH);
+    g.fillStyle = drum ? '#222a35' : blk ? '#0b0d10' : '#d9dee6'; g.fillRect(0, y, KW - 2, RH - 1);
+    if (drum) { g.fillStyle = '#c8d0db'; g.fillText(DRUMS[p], 5, y + RH / 2); }
+    else if (p % 12 === 0) { g.fillStyle = '#222'; g.fillText(pname(p), 5, y + RH / 2); }
+    g.fillStyle = '#0d1015'; g.fillRect(KW, y + RH - 1, len * CW, 1);
+  }
+  for (let i = 0; i <= len; i++) { g.fillStyle = i % 16 === 0 ? '#5b6b82' : i % 4 === 0 ? '#34404f' : '#232b36'; g.fillRect(KW + i * CW, 0, 1, H); }
+  const col = TC[tr.ci % TC.length];
+  cl.notes.forEach(n => { const x = KW + n.s * CW + 1, y = pRow(tr, n.p) * RH + 1; g.fillStyle = col; g.fillRect(x, y, n.l * CW - 2, RH - 2); g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(x + n.l * CW - 5, y, 3, RH - 2); });
+}
+function bindRoll(cv, tr, cl) {
+  let d = null;
+  const pos = e => { const r = cv.getBoundingClientRect(), x = e.clientX - r.left - KW; return { x, s: Math.floor(x / CW), r: Math.floor((e.clientY - r.top) / RH) }; };
+  cv.oncontextmenu = e => e.preventDefault();
+  cv.onpointerdown = e => {
+    if (me.role !== 'producer' || (e.button !== 0 && e.button !== 2)) return;
+    const q = pos(e); if (q.r < 0 || q.r >= rowsOf(tr)) return;
+    const p = rowP(tr, q.r);
+    if (q.x < 0) return preview(tr, p);
+    if (q.s < 0 || q.s >= cl.len) return;
+    const hit = cl.notes.find(n => n.p === p && q.s >= n.s && q.s < n.s + n.l);
+    if (e.button === 2) { if (hit) { cl.notes = cl.notes.filter(n => n !== hit); op({ k: 'nb', t: tr.id, sc: focusClip.sc, del: [hit.id] }); drawRoll(tr, cl); } return; }
+    cv.setPointerCapture(e.pointerId);
+    if (hit) { d = { n: hit, mode: (q.x > (hit.s + hit.l) * CW - 6 && tr.kind !== 'drum') ? 'resize' : 'move', off: q.s - hit.s, orig: { ...hit }, fresh: false, moved: false }; }
+    else { const dm = tr.kind === 'drum'; const n = { id: newId(), s: q.s, l: dm ? 1 : Math.min(2, cl.len - q.s), p, v: 100 }; cl.notes.push(n); preview(tr, p); d = { n, mode: dm ? 'move' : 'resize', off: 0, orig: { ...n }, fresh: true, moved: false }; }
+    drawRoll(tr, cl);
+  };
+  cv.onpointermove = e => {
+    if (!d) return; const q = pos(e), n = d.n;
+    if (d.mode === 'move') { const ns = Math.max(0, Math.min(cl.len - n.l, q.s - d.off)); const np = rowP(tr, Math.max(0, Math.min(rowsOf(tr) - 1, q.r))); if (ns !== n.s || np !== n.p) { if (np !== n.p) preview(tr, np); n.s = ns; n.p = np; d.moved = true; drawRoll(tr, cl); } }
+    else { if (d.fresh && q.s < d.orig.s + d.orig.l) return; const nl = Math.max(1, Math.min(cl.len - n.s, q.s - n.s + 1)); if (nl !== n.l) { n.l = nl; d.moved = true; drawRoll(tr, cl); } }
+  };
+  const finish = () => {
+    if (!d) return; const dd = d; d = null; const n = dd.n;
+    if (dd.fresh) op({ k: 'nb', t: tr.id, sc: focusClip.sc, add: [{ ...n }] });
+    else if (dd.moved) op({ k: 'nb', t: tr.id, sc: focusClip.sc, mod: [{ ...n }] });
+    else { cl.notes = cl.notes.filter(x => x !== n); op({ k: 'nb', t: tr.id, sc: focusClip.sc, del: [n.id] }); drawRoll(tr, cl); }
+  };
+  cv.onpointerup = finish; cv.onpointercancel = finish;
+}
+
+// ---------------- AUX (retornos) ----------------
+function renderAux() {
+  const box = $('#aux');
+  box.innerHTML = `<b style="width:100%">Retornos</b>` + S.aux.map(ax => `
+    <div class="auxcard" data-id="${ax.id}">
+      <input type="text" class="nm" data-act="auxname" value="${esc(ax.name)}" style="font-weight:600">
+      <label>Vol <input type="range" min="0" max="1" step=".01" value="${ax.vol}" data-act="auxvol"></label>
+      <label><input type="checkbox" data-act="auxmute" ${ax.mute ? 'checked' : ''}> Mudo</label>
+      ${Object.keys(AUXDEF[ax.type]).map(k => `<label>${k} <input type="range" min="${AUXDEF[ax.type][k][0]}" max="${AUXDEF[ax.type][k][1]}" step="${(AUXDEF[ax.type][k][1] - AUXDEF[ax.type][k][0]) / 100}" value="${ax.p[k]}" data-act="auxp" data-key="${k}"></label>`).join('')}
+      <button data-act="auxdel">Excluir</button>
+    </div>`).join('') + `<div class="auxcard"><b>Adicionar</b><button data-act="auxadd" data-type="reverb">+ Reverb</button><button data-act="auxadd" data-type="delay">+ Delay</button></div>`;
+}
+$('#aux').addEventListener('input', e => {
+  const card = e.target.closest('.auxcard'); if (!card || !card.dataset.id) return;
+  const ax = S.aux.find(a => a.id === card.dataset.id); if (!ax) return;
+  const act = e.target.dataset.act;
+  if (act === 'auxvol') { ax.vol = +e.target.value; updateAux(ax); op({ k: 'auxSet', id: ax.id, vol: ax.vol }); }
+  if (act === 'auxp') { ax.p[e.target.dataset.key] = +e.target.value; updateAux(ax); op({ k: 'auxSet', id: ax.id, key: e.target.dataset.key, v: +e.target.value }); }
+});
+$('#aux').addEventListener('change', e => {
+  const card = e.target.closest('.auxcard'); const act = e.target.dataset.act;
+  if (act === 'auxadd') return op({ k: 'auxAdd', type: e.target.dataset.type });
+  if (!card || !card.dataset.id) return; const ax = S.aux.find(a => a.id === card.dataset.id); if (!ax) return;
+  if (act === 'auxname') { ax.name = e.target.value; op({ k: 'auxSet', id: ax.id, name: ax.name }); }
+  if (act === 'auxmute') { ax.mute = e.target.checked; updateAux(ax); op({ k: 'auxSet', id: ax.id, mute: ax.mute }); }
+});
+$('#aux').addEventListener('click', e => { if (e.target.dataset.act === 'auxdel') op({ k: 'auxDel', id: e.target.closest('.auxcard').dataset.id }); });
+
+// ---------------- ARRANJO ----------------
+function arrLen() {
+  let m = 128; S.tracks.forEach(tr => (tr.arr || []).forEach(a => { m = Math.max(m, a.s + a.l + 32); }));
+  return Math.min(2048, Math.ceil(m / 16) * 16);
+}
+let autoParam = {}; // tid -> 'vol'|'pan' selecionado; presença na autoOpen = lane visível
+const autoOpen = new Set();
+function renderArr() {
+  const box = $('#lanes'), len = arrLen();
+  $('#loopS').value = S.loop.s; $('#loopE').value = S.loop.e; $('#arrStart').value = S.arrStart;
+  $('#loopToggle').classList.toggle('on', S.loop.on);
+  box.innerHTML = S.tracks.map(tr => laneHtml(tr, len)).join('');
+  S.tracks.forEach(tr => { bindLane(tr, len); if (autoOpen.has(tr.id)) bindAutoLane(tr, len); });
+}
+function laneHtml(tr, len) {
+  const c = TC[tr.ci % TC.length];
+  const W = len * ACW, H = rowsOf(tr) > 8 ? 60 : 40;
+  let h = `<div class="lane" id="lane-${tr.id}"><div class="lanehdr">
+    <span class="nm"><span class="cdot" style="background:${c};display:inline-block;margin-right:4px"></span>${esc(tr.name)}</span>
+    <div><button data-act="mute" data-t="${tr.id}" class="${tr.mute ? 'on' : ''}" style="padding:2px 6px">M</button> <button data-act="solo" data-t="${tr.id}" class="solo ${tr.solo ? 'on' : ''}" style="padding:2px 6px">S</button></div>
+    <button data-act="autotoggle" data-t="${tr.id}" style="font-size:10px">${autoOpen.has(tr.id) ? '▾' : '▸'} Automação</button>
+    ${autoOpen.has(tr.id) ? `<select data-act="autoparam" data-t="${tr.id}" style="font-size:10px"><option value="vol"${(autoParam[tr.id] || 'vol') === 'vol' ? ' selected' : ''}>Volume</option><option value="pan"${autoParam[tr.id] === 'pan' ? ' selected' : ''}>Pan</option></select><button data-act="autoclear" data-t="${tr.id}" style="font-size:10px">limpar</button>` : ''}
+  </div><div class="lanewrap"><div class="lanebody" style="width:${W}px"><canvas id="arrcv-${tr.id}" width="${W}" height="${H}"></canvas>
+  ${autoOpen.has(tr.id) ? `<canvas class="autocanvas" id="autocv-${tr.id}" width="${W}" height="60"></canvas>` : ''}</div></div></div>`;
+  return h;
+}
+function drawLane(tr, len) {
+  const cv = $('#arrcv-' + tr.id); if (!cv) return;
+  const g = cv.getContext('2d'), W = cv.width, H = cv.height;
+  g.clearRect(0, 0, W, H);
+  for (let i = 0; i <= len; i += BAR) { g.fillStyle = i % (BAR * 4) === 0 ? '#39465a' : '#222b38'; g.fillRect(i * ACW, 0, 1, H); }
+  const g0 = globalStep();
+  if (S.loop.on) { g.fillStyle = 'rgba(76,201,240,.08)'; g.fillRect(S.loop.s * ACW, 0, (S.loop.e - S.loop.s) * ACW, H); }
+  const col = TC[tr.ci % TC.length];
+  (tr.arr || []).forEach(a => {
+    const cl = clipById(tr, a.clip); const active = g0 != null && Math.floor(g0) >= a.s && Math.floor(g0) < a.s + a.l;
+    g.fillStyle = col; g.fillRect(a.s * ACW, 2, a.l * ACW - 1, H - 4);
+    if (active) { g.strokeStyle = '#fff'; g.lineWidth = 2; g.strokeRect(a.s * ACW + 1, 2, a.l * ACW - 2, H - 4); }
+    g.fillStyle = '#06080c'; g.font = '10px system-ui'; g.fillText(cl ? cl.name || 'Clipe' : '?', a.s * ACW + 4, 13);
+  });
+  if (g0 != null) { g.fillStyle = '#fff'; g.fillRect(g0 * ACW, 0, 1.5, H); }
+}
+function bindLane(tr, len) {
+  const cv = $('#arrcv-' + tr.id); if (!cv) return;
+  let d = null, picker = null;
+  const stepAt = e => { const r = cv.getBoundingClientRect(); return Math.max(0, Math.floor((e.clientX - r.left) / ACW)); };
+  const closePicker = () => { if (picker) { picker.remove(); picker = null; } };
+  cv.oncontextmenu = e => e.preventDefault();
+  cv.onpointerdown = e => {
+    closePicker(); if (me.role !== 'producer') return;
+    const s = stepAt(e), blk = (tr.arr || []).find(a => s >= a.s && s < a.s + a.l);
+    if (e.button === 2) { if (blk) op({ k: 'arrDel', t: tr.id, id: blk.id }); return; }
+    if (!blk) {
+      const clips = Object.values(tr.clips); if (!clips.length) return addLog('Crie um clipe para "' + tr.name + '" na Sessão primeiro.');
+      picker = document.createElement('div'); picker.className = 'pick';
+      picker.style.left = Math.min(e.clientX, innerWidth - 160) + 'px'; picker.style.top = e.clientY + 'px';
+      picker.innerHTML = clips.map(c2 => `<button data-cid="${c2.id}">${esc(c2.name || 'Clipe')} (${c2.len}p)</button>`).join('');
+      document.body.appendChild(picker);
+      picker.onclick = ev => { const cid = ev.target.dataset.cid; if (!cid) return; const cl = clips.find(c2 => c2.id === cid); const bs = Math.floor(s / BAR) * BAR; op({ k: 'arrAdd', t: tr.id, clip: cid, s: bs, l: cl.len }); closePicker(); };
+      return;
+    }
+    cv.setPointerCapture(e.pointerId);
+    const edge = s > blk.s + blk.l - Math.max(1, Math.round(4 / ACW));
+    d = { blk, mode: edge ? 'resize' : 'move', off: s - blk.s, orig: { ...blk } };
+  };
+  cv.onpointermove = e => {
+    if (!d) return; const s = stepAt(e), a = d.blk;
+    if (d.mode === 'move') a.s = Math.max(0, s - d.off); else a.l = Math.max(1, s - a.s + 1);
+    drawLane(tr, len);
+  };
+  const finish = () => { if (!d) return; const a = d.blk; op({ k: 'arrMod', t: tr.id, id: a.id, s: a.s, l: a.l }); d = null; };
+  cv.onpointerup = finish; cv.onpointercancel = finish;
+  drawLane(tr, len);
+}
+function renderAutoLane(tr) { drawAutoLane(tr, arrLen()); }
+function drawAutoLane(tr, len) {
+  const cv = $('#autocv-' + tr.id); if (!cv) return;
+  const pm = autoParam[tr.id] || 'vol', lim = AUTO_LIM[pm], pts = tr.autom[pm] || [];
+  const g = cv.getContext('2d'), W = cv.width, H = cv.height;
+  g.clearRect(0, 0, W, H); g.fillStyle = '#0a0d12'; g.fillRect(0, 0, W, H);
+  for (let i = 0; i <= len; i += BAR * 4) { g.fillStyle = '#222b38'; g.fillRect(i * ACW, 0, 1, H); }
+  const y = v => H - ((v - lim[0]) / (lim[1] - lim[0])) * H;
+  g.strokeStyle = '#555'; g.beginPath(); g.moveTo(0, y(pm === 'pan' ? 0 : .8)); g.lineTo(W, y(pm === 'pan' ? 0 : .8)); g.stroke();
+  if (pts.length) {
+    const col = TC[tr.ci % TC.length];
+    g.strokeStyle = col; g.lineWidth = 2; g.beginPath(); g.moveTo(0, y(pts[0].v));
+    pts.forEach(p => g.lineTo(p.s * ACW, y(p.v))); g.lineTo(W, y(pts[pts.length - 1].v)); g.stroke();
+    pts.forEach(p => { g.fillStyle = col; g.beginPath(); g.arc(p.s * ACW, y(p.v), 4, 0, 7); g.fill(); });
+  } else { g.fillStyle = '#556'; g.font = '10px system-ui'; g.fillText('Clique para desenhar a automação de ' + (pm === 'vol' ? 'volume' : 'pan'), 6, 14); }
+}
+function bindAutoLane(tr, len) {
+  const cv = $('#autocv-' + tr.id); if (!cv) return;
+  let drag = null;
+  const pm = () => autoParam[tr.id] || 'vol';
+  const val = e => { const r = cv.getBoundingClientRect(), lim = AUTO_LIM[pm()]; const y = Math.max(0, Math.min(1, (e.clientY - r.top) / r.height)); return lim[0] + (1 - y) * (lim[1] - lim[0]); };
+  const stepAt = e => { const r = cv.getBoundingClientRect(); return Math.max(0, Math.min(len, Math.round((e.clientX - r.left) / ACW))); };
+  const send2 = () => op({ k: 'autoSet', t: tr.id, param: pm(), points: tr.autom[pm()] });
+  cv.oncontextmenu = e => e.preventDefault();
+  cv.onpointerdown = e => {
+    if (me.role !== 'producer') return;
+    const pts = tr.autom[pm()] || (tr.autom[pm()] = []); const s = stepAt(e);
+    const hit = pts.find(p => Math.abs(p.s - s) * ACW < 7);
+    if (e.button === 2) { if (hit) { tr.autom[pm()] = pts.filter(p => p !== hit); drawAutoLane(tr, len); send2(); } return; }
+    cv.setPointerCapture(e.pointerId);
+    if (hit) drag = hit; else { drag = { s, v: val(e) }; pts.push(drag); pts.sort((a, b) => a.s - b.s); }
+    drag.v = val(e); drawAutoLane(tr, len);
+  };
+  cv.onpointermove = e => { if (!drag) return; drag.s = stepAt(e); drag.v = val(e); tr.autom[pm()].sort((a, b) => a.s - b.s); drawAutoLane(tr, len); };
+  const finish = () => { if (!drag) return; drag = null; send2(); };
+  cv.onpointerup = finish; cv.onpointercancel = finish;
+  drawAutoLane(tr, len);
+}
+$('#lanes').addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const id = b.dataset.t, tr = id && track(id);
+  if (b.dataset.act === 'autotoggle') { autoOpen.has(id) ? autoOpen.delete(id) : autoOpen.add(id); return renderArr(); }
+  if (b.dataset.act === 'autoclear') { tr.autom[autoParam[id] || 'vol'] = []; op({ k: 'autoSet', t: id, param: autoParam[id] || 'vol', points: [] }); return renderArr(); }
+  if (me.role !== 'producer') return;
+  if (b.dataset.act === 'mute') { tr.mute = !tr.mute; applyChain(tr); S.tracks.forEach(applyChain); op({ k: 'param', t: id, p: 'mute', v: tr.mute }); return renderArr(); }
+  if (b.dataset.act === 'solo') { tr.solo = !tr.solo; applyChain(tr); S.tracks.forEach(applyChain); op({ k: 'param', t: id, p: 'solo', v: tr.solo }); return renderArr(); }
+});
+$('#lanes').addEventListener('change', e => { if (e.target.dataset.act === 'autoparam') { autoParam[e.target.dataset.t] = e.target.value; renderArr(); } });
+$('#loopToggle').onclick = () => op({ k: 'loop', on: !S.loop.on, s: S.loop.s, e: S.loop.e });
+$('#loopS').onchange = e => op({ k: 'loop', on: S.loop.on, s: +e.target.value, e: S.loop.e });
+$('#loopE').onchange = e => op({ k: 'loop', on: S.loop.on, s: S.loop.s, e: +e.target.value });
+$('#arrStart').onchange = e => op({ k: 'arrStart', v: +e.target.value });
+
+// ---------------- transporte, chat, usuários ----------------
+$('#play').onclick = () => { ctx.resume(); op({ k: 'play' }); };
+$('#stop').onclick = () => op({ k: 'stop' });
+$('#bpm').onchange = e => op({ k: 'bpm', v: +e.target.value });
+$('#quant').onchange = e => op({ k: 'quant', v: +e.target.value });
+function syncTransportUI() {
+  $('#bpm').value = S.bpm; $('#quant').value = S.q; $('#play').classList.toggle('on', S.playing);
+  document.getElementById('app').classList.toggle('ro', me.role !== 'producer');
+}
+(function raf() {
+  if (S) { if (view === 'sess') S.tracks.forEach(updatePlayingMarks); else { const len = arrLen(); S.tracks.forEach(tr => { drawLane(tr, len); if (autoOpen.has(tr.id)) drawAutoLane(tr, len); }); } }
+  requestAnimationFrame(raf);
+})();
+function renderUsers() {
+  const box = $('#users'); box.innerHTML = '';
+  peers.forEach(p => {
+    const d = document.createElement('div'); d.className = 'u';
+    const dot = document.createElement('span'); dot.className = 'dot'; dot.style.background = p.color;
+    const n = document.createElement('span'); n.textContent = p.name + (p.id === me.id ? ' (você)' : '');
+    const b = document.createElement('span'); b.className = 'badge'; b.textContent = (p.id === hostId ? 'host · ' : '') + (p.role === 'producer' ? 'produtor' : 'ouvinte');
+    d.append(dot, n, b);
+    if (me.id === hostId && p.id !== me.id) { const x = document.createElement('button'); x.textContent = p.role === 'producer' ? 'ouvinte' : 'produtor'; x.onclick = () => send({ type: 'role', id: p.id, role: p.role === 'producer' ? 'listener' : 'producer' }); d.append(x); }
+    box.append(d);
+  });
+  syncTransportUI();
+}
+function addLog(text, color) { const d = document.createElement('div'); d.textContent = text; if (color) d.style.color = color; const l = $('#log'); l.append(d); l.scrollTop = l.scrollHeight; }
+$('#chat').onkeydown = e => { if (e.key === 'Enter' && e.target.value.trim()) { send({ type: 'chat', text: e.target.value }); addLog('você: ' + e.target.value); e.target.value = ''; } };
+$('#copy').onclick = () => navigator.clipboard.writeText(location.origin + '/r/' + room).then(() => addLog('Convite copiado'));
+
+$('#rec').onclick = () => {
+  if (!recDest) return;
+  if (mr && mr.state === 'recording') { mr.stop(); return; }
+  chunks = []; mr = new MediaRecorder(recDest.stream);
+  mr.ondataavailable = e => chunks.push(e.data);
+  mr.onstop = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(chunks, { type: mr.mimeType })); a.download = 'syncbeat-' + room + '.webm'; a.click(); $('#rec').classList.remove('on'); };
+  mr.start(); $('#rec').classList.add('on');
+};
+</script>
+</body>
+</html>

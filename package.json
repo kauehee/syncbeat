@@ -1,0 +1,8 @@
+{
+  "name": "syncbeat-studio",
+  "version": "0.6.0",
+  "description": "Estúdio de produção musical colaborativa ao vivo no navegador",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "dependencies": { "ws": "^8.18.0" }
+}
