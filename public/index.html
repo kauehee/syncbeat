@@ -105,7 +105,9 @@ aside{background:var(--p);display:flex;flex-direction:column;min-height:0;border
 .sgcell.beat{background:#262f3d}
 .sgcell.on{background:var(--ac)}
 .vmtabs{display:flex;gap:4px;margin-top:6px}
-.col.master{margin-left:10px;background:#15181e}
+.col.master{background:#15181e;align-self:flex-start}
+#masterPanel{flex:none;align-self:flex-start;padding-left:8px}
+.snum{font-size:11px;color:var(--mu);min-width:14px;text-align:center}
 @media(max-width:800px){#body{grid-template-columns:1fr}aside{display:none}#browser{display:none}}
 </style>
 </head>
@@ -146,6 +148,7 @@ aside{background:var(--p);display:flex;flex-direction:column;min-height:0;border
             <div id="sgrid"></div>
             <div id="clipEditor" hidden></div>
           </div>
+          <div id="masterPanel"></div>
         </div>
       </div>
       <div id="arr" hidden>
@@ -597,8 +600,9 @@ let devTrack = null; const armed = new Set();
 let masterVol = 0.85; // volume master: local a este navegador (não é compartilhado na sala)
 function renderMaster() {
   let h = `<div class="col master"><div class="chead" style="border-top:3px solid #ff4fd8"><span class="nm" style="display:block;font-size:11px;font-weight:700;padding:2px 4px">Main</span></div>`;
-  S.scenes.forEach(() => { h += '<div class="cslot"></div>'; });
-  h += `<div class="mixs">
+  S.scenes.forEach((sc, i) => { h += `<div class="cslot sl-scene"><button data-act="launchScene" data-sc="${sc.id}" title="Lançar cena">▶</button><span class="snum">${i + 1}</span>${S.scenes.length > 1 ? `<button data-act="delScene" data-sc="${sc.id}" title="Excluir cena">✕</button>` : ''}</div>`; });
+  h += `<button class="addsc" data-act="addScene" title="Nova cena">+ Cena</button>
+    <div class="mixs">
       <div class="dbv" id="db-master">${dbText(masterVol)}</div>
       <input type="range" class="vfader" min="0" max="1" step=".01" value="${masterVol}" data-act="mastervol" title="Volume master (só neste navegador)">
       <div class="mbtns"><button data-act="stopAll" title="Parar todos os clipes">■</button></div>
@@ -608,11 +612,8 @@ function renderMaster() {
 function renderSession() {
   const grid = $('#sgrid');
   if (!track(devTrack)) devTrack = S.tracks[0] ? S.tracks[0].id : null;
-  const h = '<div class="colrow">' + S.tracks.map(renderTrackRowHtml).join('') +
-    `<div class="scol"><div class="chead" style="visibility:hidden"></div>${S.scenes.map(sc => `
-      <div class="cslot sl-scene"><button data-act="launchScene" data-sc="${sc.id}" title="Lançar cena">▶</button>${S.scenes.length > 1 ? `<button data-act="delScene" data-sc="${sc.id}" title="Excluir cena">✕</button>` : ''}</div>`).join('')}
-      <button class="addsc" data-act="addScene" title="Nova cena">+ Cena</button></div>${renderMaster()}</div>`;
-  grid.innerHTML = h + renderDevice();
+  grid.innerHTML = '<div class="colrow">' + S.tracks.map(renderTrackRowHtml).join('') + '</div>' + renderDevice();
+  $('#masterPanel').innerHTML = renderMaster();
   S.tracks.forEach(tr => updatePlayingMarks(tr));
 }
 function dbText(v) { return v > 0 ? (20 * Math.log10(v)).toFixed(1) : '-∞'; }
@@ -680,23 +681,23 @@ function sendParam(el) {
   if (p === 'vol') { const d = document.getElementById('db-' + id); if (d) d.textContent = dbText(tr.vol); }
   op({ k: 'param', t: id, p, v });
 }
-$('#sgrid').addEventListener('input', e => {
+$('#sess').addEventListener('input', e => {
   if (e.target.dataset.act === 'mastervol') { masterVol = +e.target.value; if (master) master.gain.value = masterVol; document.getElementById('db-master').textContent = dbText(masterVol); return; }
   if (e.target.type === 'range') sendParam(e.target);
 });
-$('#sgrid').addEventListener('change', e => {
+$('#sess').addEventListener('change', e => {
   const el = e.target;
   if (el.dataset.act === 'upload') return uploadSample(el);
   if (el.dataset.act === 'send') { const id = el.dataset.t, tr = track(id); if (!tr) return; const cur = tr.sends[el.dataset.aux] || { l: 0, on: true, pre: false }; cur.l = +el.value; tr.sends[el.dataset.aux] = cur; syncSends(tr); return op({ k: 'send', t: id, aux: el.dataset.aux, l: cur.l }); }
   if (el.dataset.act === 'fxset') { const tr = track(el.dataset.t), f = tr.fx.find(x => x.id === el.dataset.fxid); if (!f) return; f.p[el.dataset.fxkey] = +el.value; updateFxNode(tr, f.id); return op({ k: 'fxSet', t: tr.id, id: f.id, key: el.dataset.fxkey, v: +el.value }); }
   if (el.dataset.p) sendParam(el);
 });
-$('#sgrid').addEventListener('dblclick', e => {
+$('#sess').addEventListener('dblclick', e => {
   const el = e.target; if (el.type !== 'range') return;
   const def = { vol: .8, pan: 0, cutoff: 4000, release: .2 }[el.dataset.p]; if (def === undefined) return;
   el.value = def; sendParam(el);
 });
-$('#sgrid').addEventListener('click', e => {
+$('#sess').addEventListener('click', e => {
   const b = e.target.closest('[data-act]'); if (!b) return;
   const act = b.dataset.act, id = b.dataset.t, tr = id && track(id);
   if (act === 'select') { devTrack = id; return renderSession(); }
