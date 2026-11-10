@@ -223,6 +223,11 @@ $('#go').onclick = () => {
   initAudio();
   connect(name);
 };
+// Já logado: entra direto na sala, sem mostrar a tela de entrada
+if (localStorage.getItem('sb.user')) {
+  if (urlRoom) { $('#lobby').hidden = true; $('#go').click(); }
+  else location.replace('/r/' + $('#room').value);
+}
 
 // ================= ÁUDIO =================
 function makeIR(sec) {
@@ -534,7 +539,7 @@ function connect(name) {
 }
 function handle(m) {
   switch (m.type) {
-    case 'error': S ? addLog('⚠ ' + m.msg) : $('#err').textContent = m.msg; break;
+    case 'error': if (S) addLog('⚠ ' + m.msg); else { $('#lobby').hidden = false; $('#err').textContent = m.msg; } break;
     case 'pong': { const t1 = Date.now(), rtt = t1 - m.t0; if (rtt <= bestRtt) { bestRtt = rtt; offset = m.ts + rtt / 2 - t1; } break; }
     case 'welcome':
       if (m.v !== 7) { ws.onclose = null; ws.close(); $('#err').textContent = 'O servidor está desatualizado. Feche o terminal antigo (Ctrl+C), rode "npm start" na pasta nova e recarregue a página (Ctrl+F5).'; return; }
