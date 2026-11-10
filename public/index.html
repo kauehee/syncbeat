@@ -86,6 +86,7 @@ aside{background:var(--p);display:flex;flex-direction:column;min-height:0;border
 .cslot .clipbtn{min-height:20px;font-size:10px;padding:1px 4px;line-height:1.1}
 .cslot small{display:none}
 .cslot .mk{font-size:8px;padding:0 2px}
+.cslot .mk.ply{left:2px;right:auto;top:auto;bottom:2px;font-size:9px}
 .cslot .new{height:20px;padding:0}
 .sl-scene{display:flex;gap:2px;align-items:center;justify-content:center}
 .sl-scene button{padding:1px 4px;font-size:10px}
@@ -624,7 +625,7 @@ function renderTrackRowHtml(tr) {
   S.scenes.forEach(sc => {
     const cl = tr.clips[sc.id];
     h += `<div class="cslot cell" data-t="${tr.id}" data-sc="${sc.id}">` + (cl
-      ? `<button class="clipbtn" style="background:${c}" data-act="launch" data-t="${tr.id}" data-sc="${sc.id}">${esc(cl.name || 'Clipe')}<br><small>${cl.len} passos</small></button><span class="mk" data-act="edit" data-t="${tr.id}" data-sc="${sc.id}">✎</span><span class="mk" style="right:14px" data-act="delClip" data-t="${tr.id}" data-sc="${sc.id}">✕</span>`
+      ? `<button class="clipbtn" style="background:${c}" data-act="launch" data-t="${tr.id}" data-sc="${sc.id}">${esc(cl.name || 'Clipe')}<br><small>${cl.len} passos</small></button><span class="mk ply" data-act="launch" data-t="${tr.id}" data-sc="${sc.id}" title="Tocar clipe">▶</span><span class="mk" data-act="edit" data-t="${tr.id}" data-sc="${sc.id}">✎</span><span class="mk" style="right:14px" data-act="delClip" data-t="${tr.id}" data-sc="${sc.id}">✕</span>`
       : `<button class="new" data-act="newClip" data-t="${tr.id}" data-sc="${sc.id}">+</button>`) + `</div>`;
   });
   h += `<div class="mixs">
