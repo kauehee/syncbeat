@@ -100,6 +100,7 @@ aside{background:var(--p);display:flex;flex-direction:column;min-height:0;border
       BPM <input id="bpm" type="number" min="60" max="200" style="width:56px">
       Quant <select id="quant"><option value="0">livre</option><option value="4">1 tempo</option><option value="16" selected>1 compasso</option></select>
     </span>
+    <button id="unsolo" title="Desativa o solo de todos os canais">Unsolo</button>
     <button id="rec">● REC</button>
   </header>
   <div id="body">
@@ -925,6 +926,11 @@ $('#play').onclick = () => { ctx.resume(); op({ k: 'play' }); };
 $('#stop').onclick = () => op({ k: 'stop' });
 $('#bpm').onchange = e => op({ k: 'bpm', v: +e.target.value });
 $('#quant').onchange = e => op({ k: 'quant', v: +e.target.value });
+$('#unsolo').onclick = () => {
+  if (me.role !== 'producer') return;
+  S.tracks.forEach(tr => { if (tr.solo) { tr.solo = false; op({ k: 'param', t: tr.id, p: 'solo', v: false }); } });
+  S.tracks.forEach(applyChain); renderSession(); renderArr();
+};
 function syncTransportUI() {
   $('#bpm').value = S.bpm; $('#quant').value = S.q; $('#play').classList.toggle('on', S.playing);
   document.getElementById('app').classList.toggle('ro', me.role !== 'producer');
