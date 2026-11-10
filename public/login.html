@@ -20,16 +20,20 @@ small{color:var(--mu)}a{color:var(--ac)}
   <small>Login de demonstração (MVP): qualquer usuário e senha funcionam.</small>
   <input id="user" type="text" placeholder="Usuário" maxlength="24" required>
   <input id="pass" type="password" placeholder="Senha" required>
-  <button type="submit">Entrar</button>
+  <input id="room" type="text" placeholder="Código da sala" maxlength="32" required>
+  <small id="msg" style="color:#ff5d73"></small>
+  <button type="submit">Entrar na sala</button>
   <small>Ao entrar você aceita os <a href="/termos">Termos</a> e a <a href="/privacidade">Privacidade</a>.</small>
 </form>
 <script>
 document.getElementById('f').onsubmit = e => {
   e.preventDefault();
   const user = document.getElementById('user').value.trim();
+  const room = document.getElementById('room').value.trim();
   if (!user || !document.getElementById('pass').value) return;
+  if (!/^[\w-]{3,32}$/.test(room)) { document.getElementById('msg').textContent = 'Código de sala inválido (3–32 letras, números ou -).'; return; }
   try { localStorage.setItem('sb.user', user); localStorage.setItem('sb.name', user); } catch {}
-  location.href = '/';
+  location.href = '/r/' + room;
 };
 </script>
 </body>
