@@ -76,6 +76,29 @@ aside{background:var(--p);display:flex;flex-direction:column;min-height:0;border
 #browser .snd{display:flex;align-items:center;gap:4px;padding:3px 4px;border-radius:4px;cursor:pointer;font-size:12px}
 #browser .snd:hover{background:var(--p2)}#browser .snd .play{opacity:.6}
 #sessWrap{display:flex;align-items:flex-start}
+.colrow{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;align-items:flex-start}
+.col,.scol{width:118px;flex:none;display:flex;flex-direction:column;gap:4px;background:#0d1015;border-radius:8px;padding:4px}
+.col.sel{outline:1px solid var(--ac)}
+.scol{background:none;width:80px}
+.chead{display:flex;flex-direction:column;gap:4px;background:var(--p);border-radius:6px;padding:5px;height:96px}
+.chn{font-size:11px;color:var(--mu);cursor:pointer;text-align:center}
+.chead .nm{width:100%;font-size:12px;padding:4px}
+.crow{display:flex;gap:4px}.crow button{flex:1;padding:3px 0;font-size:11px}
+.crow button.rec.on{background:var(--on);color:#fff}
+.cslot{height:44px;width:100%;position:relative}
+.sl-scene{display:flex;gap:4px;align-items:center;justify-content:center}
+.cbot{display:flex;gap:4px;align-items:center;margin-top:4px}
+.cbot input[type=range]{flex:1;min-width:0}
+.cbot button{padding:3px 6px}
+.addsc{height:44px;width:100%}
+.devpanel{margin-top:10px;background:var(--p);border-radius:10px;padding:10px}
+.devgrid{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start}
+.stepgrid{display:grid;gap:2px;padding:6px;overflow:auto}
+.sgname{font-size:11px;color:var(--mu);display:flex;align-items:center}
+.sgcell{height:22px;background:#1d2430;border-radius:3px;cursor:pointer}
+.sgcell.beat{background:#262f3d}
+.sgcell.on{background:var(--ac)}
+.vmtabs{display:flex;gap:4px;margin-top:6px}
 @media(max-width:800px){#body{grid-template-columns:1fr}aside{display:none}#browser{display:none}}
 </style>
 </head>
@@ -115,7 +138,6 @@ aside{background:var(--p);display:flex;flex-direction:column;min-height:0;border
           <div style="flex:1;min-width:0">
             <div id="sgrid"></div>
             <div id="clipEditor" hidden></div>
-            <div id="aux"></div>
           </div>
         </div>
       </div>
@@ -126,6 +148,7 @@ aside{background:var(--p);display:flex;flex-direction:column;min-height:0;border
           <label>Início <input id="arrStart" type="number" min="0" style="width:70px"></label>
           <small class="mu">Clique vazio: escolher clipe · arraste: mover · borda direita: redimensionar · botão direito: remover · ▸ Automação abre a curva</small>
         </div>
+        <div id="aux"></div>
         <div id="lanes"></div>
       </div>
     </main>
@@ -552,7 +575,7 @@ function applyNb(cl, d) {
   if (del.size) cl.notes = cl.notes.filter(n => !del.has(n.id));
   (d.mod || []).forEach(m => { const n = cl.notes.find(x => x.id === m.id); if (n) Object.assign(n, { s: m.s, l: m.l, p: m.p, v: m.v }); });
   (d.add || []).forEach(a => { if (!cl.notes.some(x => x.id === a.id)) cl.notes.push(a); });
-  if (focusClip && clipById(track(focusClip.t), cl.id) === cl) drawRoll(track(focusClip.t), cl);
+  if (focusClip && clipById(track(focusClip.t), cl.id) === cl) drawClipView(track(focusClip.t), cl);
 }
 
 // ================= VISTAS =================
@@ -563,55 +586,60 @@ function renderAll() { renderSession(); renderArr(); renderAux(); renderClipEdit
 
 // ---------------- SESSÃO ----------------
 let focusClip = null; // {t, sc}
+let devTrack = null; const armed = new Set();
 function renderSession() {
   const grid = $('#sgrid');
-  grid.style.gridTemplateColumns = `190px repeat(${S.scenes.length}, 1fr) 70px`;
-  let h = `<div class="trow"><div></div>${S.scenes.map(sc => `
-    <div class="sc-h"><button data-act="launchScene" data-sc="${sc.id}" title="Lançar cena">▶</button>${S.scenes.length > 1 ? `<button data-act="delScene" data-sc="${sc.id}" title="Excluir cena">✕</button>` : ''}</div>`).join('')}
-    <div class="sc-h"><button data-act="addScene" title="Nova cena">+ Cena</button></div></div>`;
-  S.tracks.forEach(tr => { h += renderTrackRowHtml(tr); });
-  grid.innerHTML = h;
+  if (!track(devTrack)) devTrack = S.tracks[0] ? S.tracks[0].id : null;
+  const h = '<div class="colrow">' + S.tracks.map(renderTrackRowHtml).join('') +
+    `<div class="scol"><div class="chead" style="visibility:hidden"></div>${S.scenes.map(sc => `
+      <div class="cslot sl-scene"><button data-act="launchScene" data-sc="${sc.id}" title="Lançar cena">▶</button>${S.scenes.length > 1 ? `<button data-act="delScene" data-sc="${sc.id}" title="Excluir cena">✕</button>` : ''}</div>`).join('')}
+      <button class="addsc" data-act="addScene" title="Nova cena">+ Cena</button></div></div>`;
+  grid.innerHTML = h + renderDevice();
   S.tracks.forEach(tr => updatePlayingMarks(tr));
 }
 function renderTrackRowHtml(tr) {
-  const c = TC[tr.ci % TC.length], dr = tr.kind === 'drum', smp = tr.kind === 'sampler', t = `data-t="${tr.id}"`;
-  let h = `<div class="trow" id="trow-${tr.id}"><div class="thdr">
-    <span class="cdot" style="background:${c}"></span>
-    <input type="text" class="nm" ${t} data-p="name" value="${esc(tr.name)}" maxlength="24">
-    <button ${t} data-act="mute" class="${tr.mute ? 'on' : ''}" title="Mudo">M</button>
-    <button ${t} data-act="solo" class="solo ${tr.solo ? 'on' : ''}" title="Solo">S</button>
-    <select ${t} data-p="inst" title="Instrumento" style="font-size:11px">${instOpts(tr.inst)}</select>`;
-  if (smp) h += `<select ${t} data-p="sampleId" style="font-size:11px"><option value="">— sample —</option>${[...samples.values()].map(s => `<option value="${s.id}"${s.id === tr.sampleId ? ' selected' : ''}>${esc(s.name)}</option>`).join('')}</select>
-    <label class="btn" title="Carregar áudio (máx. ~800 KB)">⬆<input type="file" accept="audio/*" ${t} data-act="upload" hidden></label>`;
-  h += `<button ${t} data-act="mix" title="Mixer: volume, pan, sends e efeitos">🎚 Mix</button>
-    <button ${t} data-act="delTrack" title="Excluir canal">✕</button></div>`;
+  const c = TC[tr.ci % TC.length], t = `data-t="${tr.id}"`;
+  let h = `<div class="col${devTrack === tr.id ? ' sel' : ''}" id="trow-${tr.id}">
+    <div class="chead" style="border-top:3px solid ${c}">
+      <span class="chn" ${t} data-act="select" title="Mostrar dispositivo deste canal">${tr.ci + 1}</span>
+      <input type="text" class="nm" ${t} data-p="name" value="${esc(tr.name)}" maxlength="24">
+      <div class="crow">
+        <button ${t} data-act="solo" class="solo ${tr.solo ? 'on' : ''}" title="Solo">S</button>
+        <button ${t} data-act="arm" class="rec ${armed.has(tr.id) ? 'on' : ''}" title="Rec">●</button>
+      </div>
+    </div>`;
   S.scenes.forEach(sc => {
     const cl = tr.clips[sc.id];
-    h += `<div class="cell" data-t="${tr.id}" data-sc="${sc.id}">` + (cl
+    h += `<div class="cslot cell" data-t="${tr.id}" data-sc="${sc.id}">` + (cl
       ? `<button class="clipbtn" style="background:${c}" data-act="launch" data-t="${tr.id}" data-sc="${sc.id}">${esc(cl.name || 'Clipe')}<br><small style="opacity:.75">${cl.len} passos</small></button><span class="mk" data-act="edit" data-t="${tr.id}" data-sc="${sc.id}">✎</span><span class="mk" style="right:16px" data-act="delClip" data-t="${tr.id}" data-sc="${sc.id}">✕</span>`
       : `<button class="new" data-act="newClip" data-t="${tr.id}" data-sc="${sc.id}">+</button>`) + `</div>`;
   });
-  h += `<div class="cell"><button data-act="stopTrack" data-t="${tr.id}" title="Parar este canal">■</button></div></div>`;
-  if (mixOpen.has(tr.id)) h += renderMixRow(tr);
+  h += `<div class="cbot"><input type="range" min="0" max="1" step=".01" value="${tr.vol}" ${t} data-p="vol" title="Volume">
+      <button ${t} data-act="stopTrack" title="Disparar: parar clipe">■</button></div></div>`;
   return h;
 }
 function renderTrackRow(tr) { const el = document.getElementById('trow-' + tr.id); if (el) el.outerHTML = renderTrackRowHtml(tr); else renderSession(); updatePlayingMarks(tr); }
-const mixOpen = new Set();
-function renderMixRow(tr) {
+function renderDevice() {
+  const tr = track(devTrack); if (!tr) return '';
   const t = `data-t="${tr.id}"`;
-  let sends = Object.values(S.aux).map(ax => `<label>${esc(ax.name)} <input type="range" min="0" max="1" step=".01" value="${(tr.sends[ax.id] || { l: 0 }).l}" ${t} data-aux="${ax.id}" data-act="send"></label>`).join('');
-  let fx = tr.fx.map(f => `<div class="fxchip"><button ${t} data-fxid="${f.id}" data-act="fxtoggle" class="${f.on ? 'on' : ''}" style="padding:2px 5px">${FXLABEL[f.type]}</button>
+  const sends = S.aux.map(ax => `<label>${esc(ax.name)} <input type="range" min="0" max="1" step=".01" value="${(tr.sends[ax.id] || { l: 0 }).l}" ${t} data-aux="${ax.id}" data-act="send"></label>`).join('');
+  const fx = tr.fx.map(f => `<div class="fxchip"><button ${t} data-fxid="${f.id}" data-act="fxtoggle" class="${f.on ? 'on' : ''}" style="padding:2px 5px">${FXLABEL[f.type]}</button>
     ${Object.keys(FXDEF[f.type]).map(k => `<label>${k} <input type="range" min="${FXDEF[f.type][k][0]}" max="${FXDEF[f.type][k][1]}" step="${(FXDEF[f.type][k][1] - FXDEF[f.type][k][0]) / 100}" value="${f.p[k]}" ${t} data-fxid="${f.id}" data-fxkey="${k}" data-act="fxset"></label>`).join('')}
     <button ${t} data-fxid="${f.id}" data-act="fxdel" style="padding:2px 5px">✕</button></div>`).join('');
-  return `<div class="mixrow" data-t="${tr.id}">
-    <div class="mixcol"><b>Fader</b>
-      <label>Vol <input type="range" min="0" max="1" step=".01" value="${tr.vol}" ${t} data-p="vol"></label>
-      <label>Pan <input type="range" min="-1" max="1" step=".01" value="${tr.pan}" ${t} data-p="pan"></label>
-      ${tr.kind !== 'drum' ? `<label>Filtro <input type="range" min="100" max="16000" value="${tr.cutoff}" ${t} data-p="cutoff"></label><label>Release <input type="range" min=".03" max="2" step=".01" value="${tr.release}" ${t} data-p="release"></label>` : ''}
-    </div>
-    <div class="mixcol"><b>Sends</b>${sends || '<small class="mu">sem retornos</small>'}</div>
-    <div class="mixcol" style="min-width:260px"><b>Efeitos (inserido)</b>${fx}
-      <div style="display:flex;gap:4px;flex-wrap:wrap">${Object.keys(FXDEF).map(k => `<button ${t} data-fxtype="${k}" data-act="fxadd" style="font-size:10px;padding:3px 6px">+ ${FXLABEL[k]}</button>`).join('')}</div>
+  const smp = tr.kind === 'sampler' ? `<select ${t} data-p="sampleId" style="font-size:11px"><option value="">— sample —</option>${[...samples.values()].map(s => `<option value="${s.id}"${s.id === tr.sampleId ? ' selected' : ''}>${esc(s.name)}</option>`).join('')}</select>
+    <label class="btn" title="Carregar áudio (máx. ~800 KB)">⬆ sample<input type="file" accept="audio/*" ${t} data-act="upload" hidden></label>` : '';
+  return `<div class="devpanel">
+    <div class="aheader"><b>Dispositivo:</b> <select ${t} data-p="inst" style="font-size:11px">${instOpts(tr.inst)}</select> ${smp}
+      <small class="mu">canal ${tr.ci + 1} · ${esc(tr.name)}</small></div>
+    <div class="devgrid">
+      <div class="mixcol"><b>Parâmetros</b>
+        <label>Pan <input type="range" min="-1" max="1" step=".01" value="${tr.pan}" ${t} data-p="pan"></label>
+        ${tr.kind !== 'drum' ? `<label>Filtro <input type="range" min="100" max="16000" value="${tr.cutoff}" ${t} data-p="cutoff"></label><label>Release <input type="range" min=".03" max="2" step=".01" value="${tr.release}" ${t} data-p="release"></label>` : ''}
+      </div>
+      <div class="mixcol"><b>Sends</b>${sends || '<small class="mu">sem retornos</small>'}</div>
+      <div class="mixcol" style="min-width:260px"><b>Efeitos</b>${fx}
+        <div style="display:flex;gap:4px;flex-wrap:wrap">${Object.keys(FXDEF).map(k => `<button ${t} data-fxtype="${k}" data-act="fxadd" style="font-size:10px;padding:3px 6px">+ ${FXLABEL[k]}</button>`).join('')}</div>
+      </div>
     </div>
   </div>`;
 }
@@ -645,6 +673,8 @@ $('#sgrid').addEventListener('dblclick', e => {
 $('#sgrid').addEventListener('click', e => {
   const b = e.target.closest('[data-act]'); if (!b) return;
   const act = b.dataset.act, id = b.dataset.t, tr = id && track(id);
+  if (act === 'select') { devTrack = id; return renderSession(); }
+  if (act === 'arm') { armed.has(id) ? armed.delete(id) : armed.add(id); b.classList.toggle('on', armed.has(id)); return; }
   if (act === 'addScene') return op({ k: 'addScene' });
   if (act === 'delScene') return confirm('Excluir esta cena para todos os canais?') && op({ k: 'delScene', sc: b.dataset.sc });
   if (act === 'launchScene') return op({ k: 'launchScene', sc: b.dataset.sc });
@@ -657,7 +687,6 @@ $('#sgrid').addEventListener('click', e => {
   if (act === 'delTrack') return confirm('Excluir o canal "' + tr.name + '"? Vale para todos na sala.') && op({ k: 'del', t: id });
   if (act === 'mute') { tr.mute = !tr.mute; applyChain(tr); b.classList.toggle('on', tr.mute); S.tracks.forEach(applyChain); return op({ k: 'param', t: id, p: 'mute', v: tr.mute }); }
   if (act === 'solo') { tr.solo = !tr.solo; applyChain(tr); b.classList.toggle('on', tr.solo); S.tracks.forEach(applyChain); return op({ k: 'param', t: id, p: 'solo', v: tr.solo }); }
-  if (act === 'mix') { mixOpen.has(id) ? mixOpen.delete(id) : mixOpen.add(id); return renderSession(); }
   if (act === 'fxadd') return op({ k: 'fxAdd', t: id, type: b.dataset.fxtype });
   if (act === 'fxdel') return op({ k: 'fxDel', t: id, id: b.dataset.fxid });
   if (act === 'fxtoggle') { const f = tr.fx.find(x => x.id === b.dataset.fxid); if (!f) return; f.on = !f.on; rebuildFx(tr); b.classList.toggle('on', f.on); return op({ k: 'fxSet', t: id, id: f.id, on: f.on }); }
@@ -707,14 +736,38 @@ function renderClipEditor() {
     <label>Passos <input type="number" id="clipLen" min="1" max="128" value="${cl.len}" style="width:64px"></label>
     <button id="clipDbl">×2</button><button id="clipDup">Duplicar p/ próxima cena</button><button id="clipDel">Excluir clipe</button>
     <small class="mu">Clique/arraste cria nota · borda direita alonga · arraste move · clique apaga</small></div>
-    <div class="rollbox"><div class="rollwrap"><canvas id="rollcv"></canvas><div class="ph" id="rollph"></div></div></div>`;
+    ${tr.kind === 'drum' ? `<div class="vmtabs"><button data-vm="steps" class="${isStepView(tr) ? 'on' : ''}">Steps</button><button data-vm="roll" class="${isStepView(tr) ? '' : 'on'}">Piano Roll</button></div>` : ''}
+    ${isStepView(tr) ? '<div class="rollbox" id="stepsBox"></div>' : '<div class="rollbox"><div class="rollwrap"><canvas id="rollcv"></canvas><div class="ph" id="rollph"></div></div></div>'}`;
   $('#clipName').onchange = e => op({ k: 'clipProp', t: tr.id, sc: focusClip.sc, name: e.target.value });
   $('#clipLen').onchange = e => { const v = Math.max(1, Math.min(128, +e.target.value | 0)); op({ k: 'clipProp', t: tr.id, sc: focusClip.sc, len: v }); };
   $('#clipDbl').onclick = () => op({ k: 'dbl', t: tr.id, sc: focusClip.sc });
   $('#clipDup').onclick = () => op({ k: 'dupClip', t: tr.id, sc: focusClip.sc });
   $('#clipDel').onclick = () => { if (confirm('Excluir este clipe?')) { op({ k: 'delClip', t: tr.id, sc: focusClip.sc }); focusClip = null; renderClipEditor(); } };
-  bindRoll($('#rollcv'), tr, cl);
-  drawRoll(tr, cl);
+  box.querySelectorAll('[data-vm]').forEach(b => b.onclick = () => { viewMode[tr.id] = b.dataset.vm; renderClipEditor(); });
+  drawClipView(tr, cl);
+  if (!isStepView(tr)) bindRoll($('#rollcv'), tr, cl);
+}
+// ---- visão Steps (baterias / drum racks): mesmas notas, cada passo = nota de 1 passo ----
+const viewMode = {};
+function isStepView(tr) { return tr.kind === 'drum' && (viewMode[tr.id] || 'steps') === 'steps'; }
+function drawClipView(tr, cl) { if (isStepView(tr)) drawSteps(tr, cl); else drawRoll(tr, cl); }
+function drawSteps(tr, cl) {
+  const box = $('#stepsBox'); if (!box) return;
+  const on = new Set(cl.notes.map(n => n.p + ':' + n.s));
+  let h = `<div class="stepgrid" style="grid-template-columns:90px repeat(${cl.len},22px)">`;
+  for (let p = 0; p < DRUMS.length; p++) {
+    h += `<div class="sgname">${DRUMS[p]}</div>`;
+    for (let s = 0; s < cl.len; s++) h += `<div class="sgcell${on.has(p + ':' + s) ? ' on' : ''}${s % 4 === 0 ? ' beat' : ''}" data-p="${p}" data-s="${s}"></div>`;
+  }
+  box.innerHTML = h + '</div>';
+  box.onclick = e => { const c = e.target.closest('.sgcell'); if (c) stepToggle(tr, cl, +c.dataset.p, +c.dataset.s); };
+}
+function stepToggle(tr, cl, p, s) {
+  if (me.role !== 'producer') return;
+  const hit = cl.notes.find(n => n.p === p && n.s === s);
+  if (hit) { cl.notes = cl.notes.filter(n => n !== hit); op({ k: 'nb', t: tr.id, sc: focusClip.sc, del: [hit.id] }); }
+  else { const n = { id: newId(), s, l: 1, p, v: 100 }; cl.notes.push(n); preview(tr, p); op({ k: 'nb', t: tr.id, sc: focusClip.sc, add: [{ ...n }] }); }
+  drawSteps(tr, cl);
 }
 function drawRoll(tr, cl) {
   const cv = $('#rollcv'); if (!cv) return;
