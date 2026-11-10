@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SyncBeat Studio — Entrar</title>
+<style>
+:root{--bg:#07080a;--p:#12151a;--p2:#1a1f27;--tx:#e8ecf1;--mu:#8a94a3;--ac:#4cc9f0}
+body{margin:0;background:var(--bg);color:var(--tx);font:14px system-ui,sans-serif}
+form{max-width:340px;margin:14vh auto;padding:28px;background:var(--p);border-radius:12px;display:grid;gap:12px}
+h1{margin:0;font-size:22px}
+input{background:var(--p2);border:1px solid #2a313c;border-radius:6px;padding:9px;color:var(--tx);font:inherit}
+button{background:var(--ac);color:#000;border:none;border-radius:6px;padding:10px;font:inherit;font-weight:600;cursor:pointer}
+small{color:var(--mu)}a{color:var(--ac)}
+</style>
+</head>
+<body>
+<form id="f">
+  <h1>SyncBeat Studio</h1>
+  <small>Login de demonstração (MVP): qualquer usuário e senha funcionam.</small>
+  <input id="user" type="text" placeholder="Usuário" maxlength="24" required>
+  <input id="pass" type="password" placeholder="Senha" required>
+  <button type="submit">Entrar</button>
+  <small>Ao entrar você aceita os <a href="/termos">Termos</a> e a <a href="/privacidade">Privacidade</a>.</small>
+</form>
+<script>
+document.getElementById('f').onsubmit = e => {
+  e.preventDefault();
+  const user = document.getElementById('user').value.trim();
+  if (!user || !document.getElementById('pass').value) return;
+  try { localStorage.setItem('sb.user', user); localStorage.setItem('sb.name', user); } catch {}
+  location.href = '/';
+};
+</script>
+</body>
+</html>

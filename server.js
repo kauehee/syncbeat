@@ -44,6 +44,7 @@ const server = http.createServer((req, res) => {
   if (u === '/healthz') return res.end('ok');
   if (u === '/' || /^\/r\/[\w-]+$/.test(u)) u = '/index.html';
   if (u === '/termos' || u === '/privacidade') u = '/legal.html';
+  if (u === '/login') u = '/login.html';
   const f = path.join(PUB, path.normalize(u));
   if (!f.startsWith(PUB)) { res.writeHead(403); return res.end(); }
   fs.readFile(f, (e, d) => {

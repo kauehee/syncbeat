@@ -213,7 +213,7 @@ const newId = () => me.id + '-' + (++nseq);
 // ---------- lobby ----------
 const urlRoom = (location.pathname.match(/^\/r\/([\w-]+)/) || [])[1];
 $('#room').value = urlRoom || Math.random().toString(36).slice(2, 8);
-try { $('#name').value = localStorage.getItem('sb.name') || ''; } catch {}
+try { if (!localStorage.getItem('sb.user')) location.replace('/login'); $('#name').value = localStorage.getItem('sb.name') || ''; } catch {}
 $('#newInst').innerHTML = instOpts('saw-bass');
 $('#go').onclick = () => {
   const name = $('#name').value.trim() || 'Produtor';
