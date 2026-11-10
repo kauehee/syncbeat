@@ -105,6 +105,7 @@ aside{background:var(--p);display:flex;flex-direction:column;min-height:0;border
 .sgcell.beat{background:#262f3d}
 .sgcell.on{background:var(--ac)}
 .vmtabs{display:flex;gap:4px;margin-top:6px}
+.col.master{margin-left:10px;background:#15181e}
 @media(max-width:800px){#body{grid-template-columns:1fr}aside{display:none}#browser{display:none}}
 </style>
 </head>
@@ -593,13 +594,24 @@ function renderAll() { renderSession(); renderArr(); renderAux(); renderClipEdit
 // ---------------- SESSÃO ----------------
 let focusClip = null; // {t, sc}
 let devTrack = null; const armed = new Set();
+let masterVol = 0.85; // volume master: local a este navegador (não é compartilhado na sala)
+function renderMaster() {
+  let h = `<div class="col master"><div class="chead" style="border-top:3px solid #ff4fd8"><span class="nm" style="display:block;font-size:11px;font-weight:700;padding:2px 4px">Main</span></div>`;
+  S.scenes.forEach(() => { h += '<div class="cslot"></div>'; });
+  h += `<div class="mixs">
+      <div class="dbv" id="db-master">${dbText(masterVol)}</div>
+      <input type="range" class="vfader" min="0" max="1" step=".01" value="${masterVol}" data-act="mastervol" title="Volume master (só neste navegador)">
+      <div class="mbtns"><button data-act="stopAll" title="Parar todos os clipes">■</button></div>
+    </div></div>`;
+  return h;
+}
 function renderSession() {
   const grid = $('#sgrid');
   if (!track(devTrack)) devTrack = S.tracks[0] ? S.tracks[0].id : null;
   const h = '<div class="colrow">' + S.tracks.map(renderTrackRowHtml).join('') +
     `<div class="scol"><div class="chead" style="visibility:hidden"></div>${S.scenes.map(sc => `
       <div class="cslot sl-scene"><button data-act="launchScene" data-sc="${sc.id}" title="Lançar cena">▶</button>${S.scenes.length > 1 ? `<button data-act="delScene" data-sc="${sc.id}" title="Excluir cena">✕</button>` : ''}</div>`).join('')}
-      <button class="addsc" data-act="addScene" title="Nova cena">+ Cena</button></div></div>`;
+      <button class="addsc" data-act="addScene" title="Nova cena">+ Cena</button></div>${renderMaster()}</div>`;
   grid.innerHTML = h + renderDevice();
   S.tracks.forEach(tr => updatePlayingMarks(tr));
 }
@@ -668,7 +680,10 @@ function sendParam(el) {
   if (p === 'vol') { const d = document.getElementById('db-' + id); if (d) d.textContent = dbText(tr.vol); }
   op({ k: 'param', t: id, p, v });
 }
-$('#sgrid').addEventListener('input', e => { if (e.target.type === 'range') sendParam(e.target); });
+$('#sgrid').addEventListener('input', e => {
+  if (e.target.dataset.act === 'mastervol') { masterVol = +e.target.value; if (master) master.gain.value = masterVol; document.getElementById('db-master').textContent = dbText(masterVol); return; }
+  if (e.target.type === 'range') sendParam(e.target);
+});
 $('#sgrid').addEventListener('change', e => {
   const el = e.target;
   if (el.dataset.act === 'upload') return uploadSample(el);
@@ -686,6 +701,7 @@ $('#sgrid').addEventListener('click', e => {
   const act = b.dataset.act, id = b.dataset.t, tr = id && track(id);
   if (act === 'select') { devTrack = id; return renderSession(); }
   if (act === 'arm') { armed.has(id) ? armed.delete(id) : armed.add(id); b.classList.toggle('on', armed.has(id)); return; }
+  if (act === 'stopAll') { S.tracks.forEach(x => op({ k: 'launch', t: x.id, sc: null })); return; }
   if (act === 'addScene') return op({ k: 'addScene' });
   if (act === 'delScene') return confirm('Excluir esta cena para todos os canais?') && op({ k: 'delScene', sc: b.dataset.sc });
   if (act === 'launchScene') return op({ k: 'launchScene', sc: b.dataset.sc });
