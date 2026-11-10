@@ -77,20 +77,26 @@ aside{background:var(--p);display:flex;flex-direction:column;min-height:0;border
 #browser .snd:hover{background:var(--p2)}#browser .snd .play{opacity:.6}
 #sessWrap{display:flex;align-items:flex-start}
 .colrow{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;align-items:flex-start}
-.col,.scol{width:118px;flex:none;display:flex;flex-direction:column;gap:4px;background:#0d1015;border-radius:8px;padding:4px}
+.col,.scol{width:92px;flex:none;display:flex;flex-direction:column;gap:3px;background:#0d1015;border-radius:6px;padding:3px}
 .col.sel{outline:1px solid var(--ac)}
-.scol{background:none;width:80px}
-.chead{display:flex;flex-direction:column;gap:4px;background:var(--p);border-radius:6px;padding:5px;height:96px}
-.chn{font-size:11px;color:var(--mu);cursor:pointer;text-align:center}
-.chead .nm{width:100%;font-size:12px;padding:4px}
-.crow{display:flex;gap:4px}.crow button{flex:1;padding:3px 0;font-size:11px}
-.crow button.rec.on{background:var(--on);color:#fff}
-.cslot{height:44px;width:100%;position:relative}
-.sl-scene{display:flex;gap:4px;align-items:center;justify-content:center}
-.cbot{display:flex;gap:4px;align-items:center;margin-top:4px}
-.cbot input[type=range]{flex:1;min-width:0}
-.cbot button{padding:3px 6px}
-.addsc{height:44px;width:100%}
+.scol{background:none;width:52px}
+.chead{background:var(--p);border-radius:4px;padding:3px;height:26px}
+.chead .nm{width:100%;font-size:11px;padding:2px 4px;height:20px}
+.cslot{height:24px;width:100%;position:relative}
+.cslot .clipbtn{min-height:20px;font-size:10px;padding:1px 4px;line-height:1.1}
+.cslot small{display:none}
+.cslot .mk{font-size:8px;padding:0 2px}
+.cslot .new{height:20px;padding:0}
+.sl-scene{display:flex;gap:2px;align-items:center;justify-content:center}
+.sl-scene button{padding:1px 4px;font-size:10px}
+.addsc{height:24px;width:100%;font-size:10px;padding:0}
+.mixs{display:flex;flex-direction:column;align-items:center;gap:4px;background:var(--p);border-radius:4px;padding:4px 2px;margin-top:6px}
+.dbv{font-size:10px;background:#0a0d12;border:1px solid #2a313c;border-radius:3px;width:100%;text-align:center;padding:1px 0}
+.vfader{-webkit-appearance:slider-vertical;writing-mode:vertical-lr;direction:rtl;width:22px;height:170px;margin:4px 0}
+.mbtns{display:flex;gap:2px;justify-content:center}
+.mbtns button{padding:2px 0;font-size:10px;width:20px}
+.mbtns button.rec.on{background:var(--on);color:#fff}
+.mnum{width:100%;text-align:center;font-size:11px;font-weight:700;color:#06080c;border-radius:3px;padding:2px 0;cursor:pointer}
 .devpanel{margin-top:10px;background:var(--p);border-radius:10px;padding:10px}
 .devgrid{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start}
 .stepgrid{display:grid;gap:2px;padding:6px;overflow:auto}
@@ -597,25 +603,28 @@ function renderSession() {
   grid.innerHTML = h + renderDevice();
   S.tracks.forEach(tr => updatePlayingMarks(tr));
 }
+function dbText(v) { return v > 0 ? (20 * Math.log10(v)).toFixed(1) : '-∞'; }
 function renderTrackRowHtml(tr) {
   const c = TC[tr.ci % TC.length], t = `data-t="${tr.id}"`;
   let h = `<div class="col${devTrack === tr.id ? ' sel' : ''}" id="trow-${tr.id}">
-    <div class="chead" style="border-top:3px solid ${c}">
-      <span class="chn" ${t} data-act="select" title="Mostrar dispositivo deste canal">${tr.ci + 1}</span>
-      <input type="text" class="nm" ${t} data-p="name" value="${esc(tr.name)}" maxlength="24">
-      <div class="crow">
-        <button ${t} data-act="solo" class="solo ${tr.solo ? 'on' : ''}" title="Solo">S</button>
-        <button ${t} data-act="arm" class="rec ${armed.has(tr.id) ? 'on' : ''}" title="Rec">●</button>
-      </div>
-    </div>`;
+    <div class="chead" style="border-top:3px solid ${c}"><input type="text" class="nm" ${t} data-p="name" value="${esc(tr.name)}" maxlength="24"></div>`;
   S.scenes.forEach(sc => {
     const cl = tr.clips[sc.id];
     h += `<div class="cslot cell" data-t="${tr.id}" data-sc="${sc.id}">` + (cl
-      ? `<button class="clipbtn" style="background:${c}" data-act="launch" data-t="${tr.id}" data-sc="${sc.id}">${esc(cl.name || 'Clipe')}<br><small style="opacity:.75">${cl.len} passos</small></button><span class="mk" data-act="edit" data-t="${tr.id}" data-sc="${sc.id}">✎</span><span class="mk" style="right:16px" data-act="delClip" data-t="${tr.id}" data-sc="${sc.id}">✕</span>`
+      ? `<button class="clipbtn" style="background:${c}" data-act="launch" data-t="${tr.id}" data-sc="${sc.id}">${esc(cl.name || 'Clipe')}<br><small>${cl.len} passos</small></button><span class="mk" data-act="edit" data-t="${tr.id}" data-sc="${sc.id}">✎</span><span class="mk" style="right:14px" data-act="delClip" data-t="${tr.id}" data-sc="${sc.id}">✕</span>`
       : `<button class="new" data-act="newClip" data-t="${tr.id}" data-sc="${sc.id}">+</button>`) + `</div>`;
   });
-  h += `<div class="cbot"><input type="range" min="0" max="1" step=".01" value="${tr.vol}" ${t} data-p="vol" title="Volume">
-      <button ${t} data-act="stopTrack" title="Disparar: parar clipe">■</button></div></div>`;
+  h += `<div class="mixs">
+      <div class="dbv" id="db-${tr.id}">${dbText(tr.vol)}</div>
+      <input type="range" class="vfader" min="0" max="1" step=".01" value="${tr.vol}" ${t} data-p="vol" title="Volume">
+      <div class="mbtns">
+        <button ${t} data-act="mute" class="${tr.mute ? 'on' : ''}" title="Mudo">M</button>
+        <button ${t} data-act="arm" class="rec ${armed.has(tr.id) ? 'on' : ''}" title="Armar (rec)">●</button>
+        <button ${t} data-act="solo" class="solo ${tr.solo ? 'on' : ''}" title="Solo">S</button>
+      </div>
+      <div class="mbtns"><button ${t} data-act="stopTrack" title="Parar clipe deste canal">■</button></div>
+      <div class="mnum" ${t} data-act="select" style="background:${c}" title="Mostrar dispositivo">${tr.ci + 1}</div>
+    </div></div>`;
   return h;
 }
 function renderTrackRow(tr) { const el = document.getElementById('trow-' + tr.id); if (el) el.outerHTML = renderTrackRowHtml(tr); else renderSession(); updatePlayingMarks(tr); }
@@ -655,7 +664,9 @@ function sendParam(el) {
   if (p === 'sampleId') return op({ k: 'inst', t: id, inst: 'sample', sampleId: el.value || null });
   const v = p === 'name' ? el.value : +el.value;
   tr[p] = p === 'name' ? v : (p === 'vol' ? Math.min(1, Math.max(0, v)) : p === 'pan' ? Math.min(1, Math.max(-1, v)) : v);
-  applyChain(tr); op({ k: 'param', t: id, p, v });
+  applyChain(tr);
+  if (p === 'vol') { const d = document.getElementById('db-' + id); if (d) d.textContent = dbText(tr.vol); }
+  op({ k: 'param', t: id, p, v });
 }
 $('#sgrid').addEventListener('input', e => { if (e.target.type === 'range') sendParam(e.target); });
 $('#sgrid').addEventListener('change', e => {
