@@ -53,9 +53,15 @@ aside{background:var(--p);display:flex;flex-direction:column;min-height:0;border
 .fxchip input[type=range]{width:50px}
 #clipEditor{margin-top:10px;background:var(--p);border-radius:10px;padding:10px}
 .rollbox{margin-top:6px;max-height:260px;overflow:auto;border-radius:6px;background:#0d1015}
-.rollwrap{position:relative;display:inline-block}
-.rollwrap canvas{display:block;touch-action:none;cursor:crosshair}
-.ph{position:absolute;top:0;bottom:0;left:0;width:2px;background:rgba(255,255,255,.7);pointer-events:none;display:none}
+.prtools{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:8px}
+.prtools button{padding:3px 8px;font-size:11px}
+.prtools button.on{background:var(--ac);color:#000}
+.prtools .sep{width:1px;height:16px;background:#2a313c}
+.prtools label{font-size:11px;color:var(--mu);display:flex;align-items:center;gap:4px}
+.prtools select{padding:2px 4px;font-size:11px}
+.prtools input[type=checkbox]{accent-color:var(--ac)}
+.pr{position:relative;height:clamp(260px,40vh,430px);margin-top:6px;background:#15171a;border-radius:6px;overflow:hidden;user-select:none;touch-action:none}
+.pr canvas{display:block;width:100%;height:100%}
 /* ---- arranjo ---- */
 .lane{display:flex;margin-bottom:3px;align-items:flex-start}
 .lanehdr{width:150px;flex:none;background:var(--p);border-radius:6px 0 0 6px;padding:6px;display:flex;flex-direction:column;gap:4px}
@@ -150,10 +156,10 @@ aside{background:var(--p);display:flex;flex-direction:column;min-height:0;border
           <div id="browser"></div>
           <div style="flex:1;min-width:0">
             <div id="sgrid"></div>
-            <div id="clipEditor" hidden></div>
           </div>
           <div id="masterPanel"></div>
         </div>
+        <div id="clipEditor" hidden></div>
       </div>
       <div id="arr" hidden>
         <div class="aheader">
@@ -188,7 +194,7 @@ const KIND = {}, LABEL = {};
 INSTS.forEach(g => g[2].forEach(i => { KIND[i[0]] = g[0]; LABEL[i[0]] = i[1]; }));
 const instOpts = sel => INSTS.map(g => `<optgroup label="${g[1]}">${g[2].map(i => `<option value="${i[0]}"${i[0] === sel ? ' selected' : ''}>${i[1]}</option>`).join('')}</optgroup>`).join('');
 const DRUMS = ['Kick', 'Snare', 'Clap', 'Hat fechado', 'Hat aberto', 'Tom grave', 'Tom agudo', 'Perc'];
-const LO = 36, HI = 84, CW = 20, RH = 13, KW = 58, ACW = 5, BAR = 16;
+const LO = 36, HI = 84, CW = 20, RH = 13, ACW = 5, BAR = 16;
 const NOTE_N = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'], BLACK = [1, 3, 6, 8, 10];
 const TC = ['#ff5d73', '#4cc9f0', '#ffd166', '#06d6a0', '#c77dff', '#ff9e4a', '#9bf6ff', '#f15bb5'];
 const pname = p => NOTE_N[p % 12] + (Math.floor(p / 12) - 1);
@@ -572,7 +578,7 @@ function bootState() {
 }
 function fullTrack(t) { makeChain(t); applyChain(t); rebuildFx(t); syncSends(t); }
 function applyOp(o) {
-  if (o.k === 'track') { const i = S.tracks.findIndex(x => x.id === o.track.id); if (i >= 0) S.tracks[i] = o.track; else S.tracks.push(o.track); fullTrack(o.track); renderSession(); renderArr(); return; }
+  if (o.k === 'track') { const i = S.tracks.findIndex(x => x.id === o.track.id); if (i >= 0) S.tracks[i] = o.track; else S.tracks.push(o.track); fullTrack(o.track); renderSession(); renderArr(); if (focusClip && focusClip.t === o.track.id) renderClipEditor(); return; }
   if (o.k === 'del') { S.tracks = S.tracks.filter(t => t.id !== o.t); dropChain(o.t); if (focusClip && focusClip.t === o.t) focusClip = null; renderSession(); renderArr(); return; }
   if (o.k === 'state') { S = o.state; bootState(); if (o.sel) { focusClip = { t: o.sel.t, sc: o.sel.sc }; renderClipEditor(); } return; }
   if (o.k === 'scenes') { S.scenes = o.scenes; renderSession(); renderArr(); return; }
@@ -600,7 +606,7 @@ function applyNb(cl, d) {
 // ================= VISTAS =================
 let view = 'sess';
 $('#tabSess').onclick = () => setView('sess'); $('#tabArr').onclick = () => setView('arr');
-function setView(v) { view = v; $('#tabSess').classList.toggle('on', v === 'sess'); $('#tabArr').classList.toggle('on', v === 'arr'); $('#sess').hidden = v !== 'sess'; $('#arr').hidden = v !== 'arr'; }
+function setView(v) { view = v; $('#tabSess').classList.toggle('on', v === 'sess'); $('#tabArr').classList.toggle('on', v === 'arr'); $('#sess').hidden = v !== 'sess'; $('#arr').hidden = v !== 'arr'; if (v === 'sess') requestAnimationFrame(prDraw); }
 function renderAll() { renderSession(); renderArr(); renderAux(); renderClipEditor(); }
 
 // ---------------- SESSÃO ----------------
@@ -767,7 +773,7 @@ renderBrowser('');
 // ---- editor do clipe (piano roll) ----
 function renderClipEditor() {
   const box = $('#clipEditor');
-  if (!focusClip) { box.hidden = true; return; }
+  if (!focusClip) { box.hidden = true; box.innerHTML = ''; return; }
   const tr = track(focusClip.t), cl = tr && clipOfScene(tr, focusClip.sc);
   if (!tr) { box.hidden = true; focusClip = null; return; }
   if (!cl) {
@@ -778,20 +784,38 @@ function renderClipEditor() {
     return;
   }
   box.hidden = false;
+  const steps = isStepView(tr);
   box.innerHTML = `<div class="aheader"><b>Editando:</b> ${esc(tr.name)} · <input type="text" id="clipName" value="${esc(cl.name)}" maxlength="24" style="width:120px">
     <label>Passos <input type="number" id="clipLen" min="1" max="128" value="${cl.len}" style="width:64px"></label>
     <button id="clipDbl">×2</button><button id="clipDup">Duplicar p/ próxima cena</button><button id="clipDel">Excluir clipe</button>
-    <small class="mu">Clique/arraste cria nota · borda direita alonga · arraste move · clique apaga</small></div>
-    ${tr.kind === 'drum' ? `<div class="vmtabs"><button data-vm="steps" class="${isStepView(tr) ? 'on' : ''}">Steps</button><button data-vm="roll" class="${isStepView(tr) ? '' : 'on'}">Piano Roll</button></div>` : ''}
-    ${isStepView(tr) ? '<div class="rollbox" id="stepsBox"></div>' : '<div class="rollbox"><div class="rollwrap"><canvas id="rollcv"></canvas><div class="ph" id="rollph"></div></div></div>'}`;
+    <small class="mu">${steps ? 'Clique para ligar/desligar o passo' : 'Desenho (B) · duplo clique cria · borda direita redimensiona · Alt+arraste duplica · Delete apaga · roda rola · Ctrl+roda dá zoom'}</small></div>
+    ${tr.kind === 'drum' ? `<div class="vmtabs"><button data-vm="steps" class="${steps ? 'on' : ''}">Steps</button><button data-vm="roll" class="${steps ? '' : 'on'}">Piano Roll</button></div>` : ''}
+    ${steps ? '<div class="rollbox" id="stepsBox"></div>' : `<div class="prtools">
+      <button id="prDrawBtn" title="Modo desenho (B)">✏ Desenho</button>
+      <label>Snap <select id="prSnapSel"><option value="1">1/16</option><option value="2">1/8</option><option value="4">1/4</option><option value="0">off</option></select></label>
+      <span class="sep"></span>
+      <button id="prZoomOut" title="Zoom horizontal (ou Ctrl+roda)">−</button><button id="prZoomIn" title="Zoom horizontal">+</button>
+      <label><input type="checkbox" id="prVelChk"> Velocidade</label>
+      <label><input type="checkbox" id="prFollowChk"> Seguir</label>
+      <span class="sep"></span><span id="prInfo" class="mu"></span>
+    </div>
+    <div class="pr"><canvas id="rollcv"></canvas></div>`}`;
   $('#clipName').onchange = e => op({ k: 'clipProp', t: tr.id, sc: focusClip.sc, name: e.target.value });
   $('#clipLen').onchange = e => { const v = Math.max(1, Math.min(128, +e.target.value | 0)); op({ k: 'clipProp', t: tr.id, sc: focusClip.sc, len: v }); };
   $('#clipDbl').onclick = () => op({ k: 'dbl', t: tr.id, sc: focusClip.sc });
   $('#clipDup').onclick = () => op({ k: 'dupClip', t: tr.id, sc: focusClip.sc });
   $('#clipDel').onclick = () => { if (confirm('Excluir este clipe?')) { op({ k: 'delClip', t: tr.id, sc: focusClip.sc }); focusClip = null; renderClipEditor(); } };
   box.querySelectorAll('[data-vm]').forEach(b => b.onclick = () => { viewMode[tr.id] = b.dataset.vm; renderClipEditor(); });
-  drawClipView(tr, cl);
-  if (!isStepView(tr)) bindRoll($('#rollcv'), tr, cl);
+  if (steps) return drawClipView(tr, cl);
+  $('#prDrawBtn').onclick = () => { PR.draw = !PR.draw; prTools(); prDraw(); };
+  $('#prSnapSel').onchange = e => { PR.snap = +e.target.value; };
+  $('#prZoomIn').onclick = () => { PR.zoomX = prClampN(PR.zoomX * 1.2, .5, 4); prDraw(); };
+  $('#prZoomOut').onclick = () => { PR.zoomX = prClampN(PR.zoomX / 1.2, .5, 4); prDraw(); };
+  $('#prVelChk').onchange = e => { PR.vel = e.target.checked; prDraw(); };
+  $('#prFollowChk').onchange = e => { PR.follow = e.target.checked; };
+  prTools();
+  bindRoll($('#rollcv'), tr, cl);
+  prDraw();
 }
 // ---- visão Steps (baterias / drum racks): mesmas notas, cada passo = nota de 1 passo ----
 const viewMode = {};
@@ -815,55 +839,409 @@ function stepToggle(tr, cl, p, s) {
   else { const n = { id: newId(), s, l: 1, p, v: 100 }; cl.notes.push(n); preview(tr, p); op({ k: 'nb', t: tr.id, sc: focusClip.sc, add: [{ ...n }] }); }
   drawSteps(tr, cl);
 }
-function drawRoll(tr, cl) {
-  const cv = $('#rollcv'); if (!cv) return;
-  const rows = rowsOf(tr), drum = tr.kind === 'drum', len = cl.len;
-  const W = KW + len * CW, H = rows * RH, dpr = window.devicePixelRatio || 1;
-  if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); cv.style.width = W + 'px'; cv.style.height = H + 'px'; }
-  const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
-  g.font = '10px system-ui'; g.textBaseline = 'middle';
-  for (let r = 0; r < rows; r++) {
-    const p = rowP(tr, r), blk = !drum && BLACK.includes(p % 12), y = r * RH;
-    g.fillStyle = blk ? '#141820' : '#1d2430'; g.fillRect(KW, y, len * CW, RH);
-    g.fillStyle = drum ? '#222a35' : blk ? '#0b0d10' : '#d9dee6'; g.fillRect(0, y, KW - 2, RH - 1);
-    if (drum) { g.fillStyle = '#c8d0db'; g.fillText(DRUMS[p], 5, y + RH / 2); }
-    else if (p % 12 === 0) { g.fillStyle = '#222'; g.fillText(pname(p), 5, y + RH / 2); }
-    g.fillStyle = '#0d1015'; g.fillRect(KW, y + RH - 1, len * CW, 1);
+// ---- piano roll estilo Ableton: viewport com teclado fixo, régua e faixa de velocidade ----
+const PRKW = 58, PRR = 18, PRV = 54; // largura do teclado, altura da régua, altura da faixa de velocidade
+const PR = { tid: null, sc: null, zoomX: 1, zoomY: 1, sx: 0, sy: 0, draw: false, snap: 1, vel: true, follow: true,
+  sel: new Set(), hover: null, hoverId: null, drag: null };
+const prClampN = (v, a, b) => Math.min(b, Math.max(a, v));
+const prCw = () => CW * PR.zoomX;
+const prRh = () => RH * PR.zoomY;
+const prVelH = () => (PR.vel ? PRV : 0);
+const prSnapStep = (s, mode) => { const u = PR.snap; if (!u) return Math.floor(s); return (mode === 'floor' ? Math.floor : Math.round)(s / u) * u; };
+function prGeo(cv) {
+  const W = Math.max(1, cv.clientWidth), H = Math.max(1, cv.clientHeight);
+  return { W, H, cw: prCw(), rh: prRh(), vh: prVelH(), nw: Math.max(1, W - PRKW), nh: Math.max(1, H - PRR - prVelH()) };
+}
+function prFind() {
+  if (!focusClip) return null;
+  const tr = track(focusClip.t), cl = tr && clipOfScene(tr, focusClip.sc);
+  return tr && cl ? { tr, cl } : null;
+}
+function prClampScroll(tr, cl, g) {
+  PR.sx = prClampN(PR.sx, 0, Math.max(0, cl.len * g.cw - g.nw));
+  PR.sy = prClampN(PR.sy, 0, Math.max(0, rowsOf(tr) * g.rh - g.nh));
+}
+function prDefaultSy(tr, cl, cv) {
+  if (tr.kind === 'drum' || !cv) return 0;
+  const view = (cv.clientHeight - PRR - prVelH()) / prRh();
+  const notes = cl && cl.notes.length ? cl.notes : null;
+  const p = notes ? Math.round(notes.reduce((a, n) => a + n.p, 0) / notes.length) : 60;
+  return Math.max(0, (pRow(tr, p) - view / 2) * prRh());
+}
+function prLocalStep(tr, cl, g) {
+  const se = sessionActive(tr, g);
+  if (se === undefined) { const a = arrangementActive(tr, g); return a && a.clip.id === cl.id ? (g - a.blk.s) % cl.len : null; }
+  return se && se.clip.id === cl.id ? (g - se.launchedAt) % cl.len : null;
+}
+function prRounded(g, x, y, w, h, r) {
+  if (g.roundRect) { g.beginPath(); g.roundRect(x, y, w, h, r); } else { g.beginPath(); g.rect(x, y, w, h); }
+}
+function prHit(tr, cl, x, y) {
+  const gx = x - PRKW + PR.sx, gy = y - PRR + PR.sy;
+  if (gx < 0 || gy < 0) return null;
+  const p = rowP(tr, Math.floor(gy / prRh()));
+  if (p < 0 || p >= (tr.kind === 'drum' ? 8 : HI + 1)) return null;
+  const s = gx / prCw();
+  return cl.notes.find(n => n.p === p && s >= n.s && s < n.s + n.l) || null;
+}
+function prVelHit(cl, x, y, geo) {
+  const cw = prCw(); let best = null, bd = 1e9;
+  cl.notes.forEach(n => {
+    const bx = PRKW + n.s * cw - PR.sx + 3, dx = Math.abs(x - bx);
+    if (dx > 7) return;
+    const by = geo.H - 6 - Math.max(2, (n.v / 127) * (PRV - 16)) - 2;
+    const d = dx + Math.abs(y - by) * .7;
+    if (d < bd) { bd = d; best = n; }
+  });
+  return best;
+}
+function prTools() {
+  const b = document.getElementById('prDrawBtn'); if (b) b.classList.toggle('on', PR.draw);
+  const s = document.getElementById('prSnapSel'); if (s) s.value = String(PR.snap);
+  const v = document.getElementById('prVelChk'); if (v) v.checked = PR.vel;
+  const f = document.getElementById('prFollowChk'); if (f) f.checked = PR.follow;
+}
+function prSetInfo(txt) { const el = document.getElementById('prInfo'); if (el && el.textContent !== txt) el.textContent = txt; }
+
+function prDraw() {
+  const cv = document.getElementById('rollcv');
+  if (!cv || !cv.isConnected || cv.clientWidth < 10 || cv.clientHeight < 10) return;
+  const f = prFind(); if (!f) return;
+  const { tr, cl } = f, drum = tr.kind === 'drum', rows = rowsOf(tr), color = TC[tr.ci % TC.length];
+  if (PR.tid !== tr.id || PR.sc !== focusClip.sc) {
+    PR.tid = tr.id; PR.sc = focusClip.sc; PR.sel.clear();
+    PR.sx = 0; PR.sy = prDefaultSy(tr, cl, cv); PR.zoomX = 1; PR.zoomY = 1;
   }
-  for (let i = 0; i <= len; i++) { g.fillStyle = i % 16 === 0 ? '#5b6b82' : i % 4 === 0 ? '#34404f' : '#232b36'; g.fillRect(KW + i * CW, 0, 1, H); }
-  const col = TC[tr.ci % TC.length];
-  cl.notes.forEach(n => { const x = KW + n.s * CW + 1, y = pRow(tr, n.p) * RH + 1; g.fillStyle = col; g.fillRect(x, y, n.l * CW - 2, RH - 2); g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(x + n.l * CW - 5, y, 3, RH - 2); });
+  const dpr = window.devicePixelRatio || 1, g0 = prGeo(cv);
+  if (cv.width !== Math.round(g0.W * dpr) || cv.height !== Math.round(g0.H * dpr)) { cv.width = Math.round(g0.W * dpr); cv.height = Math.round(g0.H * dpr); }
+  const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const W = g0.W, H = g0.H, cw = g0.cw, rh = g0.rh, nx = PRKW, ny = PRR, nw = g0.nw, nh = g0.nh, vh = g0.vh;
+  const gs = globalStep(), ls = gs == null ? null : prLocalStep(tr, cl, gs);
+  if (ls != null && PR.follow && S.playing && (ls * cw < PR.sx + cw * 2 || ls * cw > PR.sx + nw - cw * 2)) PR.sx = Math.max(0, ls * cw - nw * .3);
+  prClampScroll(tr, cl, g0);
+  const sx = PR.sx, sy = PR.sy;
+  for (const id of [...PR.sel]) if (!cl.notes.some(n => n.id === id)) PR.sel.delete(id);
+
+  g.clearRect(0, 0, W, H);
+  g.fillStyle = '#15171a'; g.fillRect(0, 0, W, H);
+  g.font = '10px system-ui'; g.textBaseline = 'middle';
+  const r0 = Math.max(0, Math.floor(sy / rh)), r1 = Math.min(rows - 1, Math.ceil((sy + nh) / rh));
+  for (let r = r0; r <= r1; r++) {
+    const p = rowP(tr, r), blk = !drum && BLACK.includes(((p % 12) + 12) % 12), y = ny + r * rh - sy;
+    g.fillStyle = blk ? '#131519' : '#1a1d22'; g.fillRect(nx, y, nw, rh);
+    if (drum) { g.fillStyle = '#20242b'; g.fillRect(0, y, PRKW - 2, rh - 1); }
+    else if (blk) { g.fillStyle = '#22262c'; g.fillRect(0, y, PRKW * .62, rh - 1); }
+    else { g.fillStyle = '#cfd5dd'; g.fillRect(0, y, PRKW - 2, rh - 1); }
+    g.fillStyle = 'rgba(0,0,0,.3)'; g.fillRect(nx, y + rh - 1, nw, 1);
+    if (!drum && p % 12 === 0) { g.fillStyle = 'rgba(255,255,255,.08)'; g.fillRect(nx, y + rh - 1, nw, 1); }
+  }
+  // rótulos do teclado
+  g.save(); g.beginPath(); g.rect(0, ny, PRKW, nh); g.clip();
+  for (let r = r0; r <= r1; r++) {
+    const p = rowP(tr, r), y = ny + r * rh - sy;
+    if (drum) { g.fillStyle = '#c8d0db'; g.fillText(DRUMS[p], 5, y + rh / 2); }
+    else if (p % 12 === 0) { g.fillStyle = '#3f4855'; g.fillText(pname(p), 4, y + rh / 2); }
+  }
+  g.restore();
+  g.fillStyle = '#0d0f12'; g.fillRect(PRKW - 1, ny, 1, nh);
+  if (PR.hover != null) {
+    const r = pRow(tr, PR.hover), y = ny + r * rh - sy;
+    if (r >= 0 && r < rows && y + rh > ny && y < ny + nh) { g.fillStyle = 'rgba(255,255,255,.05)'; g.fillRect(0, y, W, rh); }
+  }
+  // grade, notas e seleção (recortados na área de notas)
+  g.save(); g.beginPath(); g.rect(nx, ny, nw, nh); g.clip();
+  for (let i = 0; i < cl.len; i += 32) { const x = nx + i * cw - sx; if (x + 16 * cw > nx && x < W) { g.fillStyle = 'rgba(255,255,255,.022)'; g.fillRect(x, ny, Math.min(16 * cw, W - x), nh); } }
+  for (let i = 0; i <= cl.len; i++) {
+    const x = nx + i * cw - sx; if (x < nx - 1 || x > W) continue;
+    g.fillStyle = i % 16 === 0 ? '#5a687b' : i % 4 === 0 ? '#39434f' : '#242a33';
+    g.fillRect(Math.round(x), ny, 1, nh);
+  }
+  cl.notes.forEach(n => {
+    const x = nx + n.s * cw - sx + 1, y = ny + pRow(tr, n.p) * rh - sy + 1, w = n.l * cw - 2, h = rh - 2;
+    if (x + w < nx || x > W || y + h < ny || y > ny + nh) return;
+    const sel = PR.sel.has(n.id), hov = PR.hoverId === n.id;
+    g.globalAlpha = .42 + .58 * (n.v / 127);
+    g.fillStyle = color; prRounded(g, x, y, Math.max(2, w), Math.max(2, h), Math.min(3, Math.max(1, h / 3))); g.fill();
+    g.globalAlpha = 1;
+    g.lineWidth = sel ? 1.5 : 1;
+    g.strokeStyle = sel ? '#fff' : hov ? 'rgba(255,255,255,.6)' : 'rgba(0,0,0,.55)';
+    prRounded(g, x + .5, y + .5, Math.max(2, w - 1), Math.max(2, h - 1), Math.min(3, Math.max(1, h / 3))); g.stroke();
+    if (!drum && w >= 30 && h >= 11) { g.fillStyle = 'rgba(0,0,0,.62)'; g.font = '9px system-ui'; g.textBaseline = 'middle'; g.fillText(pname(n.p), x + 4, y + h / 2 + .5); }
+  });
+  if (PR.drag && PR.drag.mode === 'marq') {
+    const d = PR.drag, x = Math.min(d.x0, d.x1), y = Math.min(d.y0, d.y1), w = Math.abs(d.x1 - d.x0), h = Math.abs(d.y1 - d.y0);
+    g.fillStyle = 'rgba(76,201,240,.12)'; g.fillRect(x, y, w, h);
+    g.strokeStyle = 'rgba(76,201,240,.8)'; g.setLineDash([3, 3]); g.strokeRect(x + .5, y + .5, w, h); g.setLineDash([]);
+  }
+  g.restore();
+  // régua
+  g.font = '10px system-ui'; g.textBaseline = 'middle';
+  g.fillStyle = '#20242b'; g.fillRect(nx, 0, nw, PRR - 1);
+  g.fillStyle = '#0e1013'; g.fillRect(nx, PRR - 1, nw, 1);
+  for (let i = 0; i <= cl.len; i += 4) {
+    const x = nx + i * cw - sx; if (x < nx - 24 || x > W) continue;
+    const bar = i % 16 === 0;
+    g.fillStyle = bar ? '#7f8b9c' : '#3b4450'; g.fillRect(Math.round(x), PRR - (bar ? 8 : 4), 1, bar ? 8 : 4);
+    if (bar) { g.fillStyle = '#8a94a3'; g.fillText(String(i / 16 + 1), x + 3, PRR / 2); }
+  }
+  const bx0 = Math.max(nx, nx - sx), bx1 = Math.min(W, nx + cl.len * cw - sx);
+  if (bx1 > bx0) { g.fillStyle = '#dfe6ef'; g.fillRect(bx0, 3, bx1 - bx0, 2); g.fillRect(bx0, 3, 2, 5); g.fillRect(bx1 - 2, 3, 2, 5); }
+  // faixa de velocidade
+  if (vh) {
+    const vy = H - PRV;
+    g.fillStyle = '#121417'; g.fillRect(0, vy, W, PRV);
+    g.fillStyle = '#0d0f12'; g.fillRect(0, vy, W, 1);
+    g.fillStyle = '#1e232b'; g.fillRect(0, vy, PRKW - 1, PRV);
+    g.fillStyle = '#8a94a3'; g.fillText('Vel', 6, vy + 14);
+    const hn = PR.hoverId && cl.notes.find(n => n.id === PR.hoverId);
+    g.fillStyle = '#cfd6e0'; g.fillText(hn ? String(hn.v) : '—', 6, vy + 30);
+    cl.notes.forEach(n => {
+      const x = nx + n.s * cw - sx + 3; if (x < nx - 6 || x > W) return;
+      const h = Math.max(2, (n.v / 127) * (PRV - 16)), sel = PR.sel.has(n.id);
+      g.fillStyle = sel ? '#fff' : color; g.globalAlpha = sel ? .95 : .8;
+      g.fillRect(x, H - 6 - h, 4, h);
+      g.beginPath(); g.arc(x + 2, H - 6 - h, 2.6, 0, Math.PI * 2); g.fill();
+      g.globalAlpha = 1;
+    });
+  }
+  // playhead
+  if (ls != null) {
+    const x = nx + ls * cw - sx;
+    if (x >= nx && x <= W) {
+      g.fillStyle = 'rgba(255,255,255,.85)'; g.fillRect(Math.round(x), PRR, 1, nh);
+      g.beginPath(); g.moveTo(x - 4, PRR); g.lineTo(x + 4, PRR); g.lineTo(x, PRR + 6); g.closePath(); g.fill();
+    }
+  }
+}
+function prVel(cl, y, geo) {
+  const d = PR.drag; if (!d || d.mode !== 'vel') return;
+  const top = geo.H - PRV + 8, bottom = geo.H - 6;
+  const v = prClampN(Math.round(((bottom - y) / Math.max(1, bottom - top)) * 127), 1, 127);
+  let changed = false;
+  d.ids.forEach(id => { const n = cl.notes.find(n => n.id === id); if (n && n.v !== v) { n.v = v; changed = true; } });
+  if (changed) { d.changed = true; prSetInfo('vel ' + v); }
 }
 function bindRoll(cv, tr, cl) {
-  let d = null;
-  const pos = e => { const r = cv.getBoundingClientRect(), x = e.clientX - r.left - KW; return { x, s: Math.floor(x / CW), r: Math.floor((e.clientY - r.top) / RH) }; };
+  const pt = e => { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+  const sc = () => focusClip.sc;
   cv.oncontextmenu = e => e.preventDefault();
   cv.onpointerdown = e => {
-    if (me.role !== 'producer' || (e.button !== 0 && e.button !== 2)) return;
-    const q = pos(e); if (q.r < 0 || q.r >= rowsOf(tr)) return;
-    const p = rowP(tr, q.r);
-    if (q.x < 0) return preview(tr, p);
-    if (q.s < 0 || q.s >= cl.len) return;
-    const hit = cl.notes.find(n => n.p === p && q.s >= n.s && q.s < n.s + n.l);
-    if (e.button === 2) { if (hit) { cl.notes = cl.notes.filter(n => n !== hit); op({ k: 'nb', t: tr.id, sc: focusClip.sc, del: [hit.id] }); drawRoll(tr, cl); } return; }
+    if (me.role !== 'producer') return;
+    const q = pt(e), geo = prGeo(cv), rows = rowsOf(tr);
+    if (q.y < PRR) return;
+    if (q.x < PRKW) {
+      const r = Math.floor((q.y - PRR + PR.sy) / prRh());
+      if (r < 0 || r >= rows) return;
+      const p = rowP(tr, r);
+      PR.drag = { mode: 'keys', p };
+      cv.setPointerCapture(e.pointerId); preview(tr, p); return;
+    }
+    if (PR.vel && q.y >= geo.H - PRV) {
+      const hit = prVelHit(cl, q.x, q.y, geo); if (!hit) return;
+      if (e.shiftKey) { PR.sel.has(hit.id) ? PR.sel.delete(hit.id) : PR.sel.add(hit.id); }
+      else if (!PR.sel.has(hit.id)) { PR.sel.clear(); PR.sel.add(hit.id); }
+      PR.drag = { mode: 'vel', ids: [...PR.sel], changed: false };
+      cv.setPointerCapture(e.pointerId); prVel(cl, q.y, geo); prDraw(); return;
+    }
+    const sF = (q.x - PRKW + PR.sx) / geo.cw, rF = (q.y - PRR + PR.sy) / geo.rh;
+    if (sF < 0 || sF >= cl.len || rF < 0 || rF >= rows) return;
+    const p = rowP(tr, Math.floor(rF)), hit = prHit(tr, cl, q.x, q.y);
+    if (e.button === 2) {
+      if (hit) { cl.notes = cl.notes.filter(n => n !== hit); PR.sel.delete(hit.id); op({ k: 'nb', t: tr.id, sc: sc(), del: [hit.id] }); prDraw(); }
+      return;
+    }
+    if (e.button !== 0) return;
     cv.setPointerCapture(e.pointerId);
-    if (hit) { d = { n: hit, mode: (q.x > (hit.s + hit.l) * CW - 6 && tr.kind !== 'drum') ? 'resize' : 'move', off: q.s - hit.s, orig: { ...hit }, fresh: false, moved: false }; }
-    else { const dm = tr.kind === 'drum'; const n = { id: newId(), s: q.s, l: dm ? 1 : Math.min(2, cl.len - q.s), p, v: 100 }; cl.notes.push(n); preview(tr, p); d = { n, mode: dm ? 'move' : 'resize', off: 0, orig: { ...n }, fresh: true, moved: false }; }
-    drawRoll(tr, cl);
+    if (PR.draw) {
+      if (hit) { cl.notes = cl.notes.filter(n => n !== hit); PR.sel.delete(hit.id); op({ k: 'nb', t: tr.id, sc: sc(), del: [hit.id] }); prDraw(); return; }
+      const s0 = Math.min(cl.len - 1, prSnapStep(sF, 'floor'));
+      const n = { id: newId(), s: s0, l: tr.kind === 'drum' ? 1 : Math.min(PR.snap || 1, cl.len - s0), p, v: 100 };
+      cl.notes.push(n);
+      PR.drag = { mode: 'draw', n };
+      preview(tr, p); prDraw(); return;
+    }
+    if (hit) {
+      if (e.shiftKey || e.metaKey) { PR.sel.has(hit.id) ? PR.sel.delete(hit.id) : PR.sel.add(hit.id); PR.drag = null; prDraw(); return; }
+      if (!PR.sel.has(hit.id)) { PR.sel.clear(); PR.sel.add(hit.id); }
+      const rightX = PRKW + (hit.s + hit.l) * geo.cw - PR.sx;
+      const resize = tr.kind !== 'drum' && Math.abs(q.x - rightX) <= 6;
+      const origIds = [...PR.sel];
+      const orig = cl.notes.filter(n => PR.sel.has(n.id)).map(n => ({ ...n }));
+      if (e.altKey) {
+        const copies = orig.map(n => ({ ...n, id: newId() }));
+        cl.notes.push(...copies);
+        PR.sel = new Set(copies.map(n => n.id));
+        PR.drag = { mode: 'move', ids: [...PR.sel], anchorId: copies[0].id, orig: copies.map(n => ({ ...n })), origIds, startS: sF, startR: rF, moved: false, clone: true };
+      } else {
+        PR.drag = { mode: resize ? 'resize' : 'move', ids: [...PR.sel], anchorId: hit.id, orig, startS: sF, startR: rF, moved: false };
+      }
+      preview(tr, hit.p); prDraw(); return;
+    }
+    if (!e.shiftKey) PR.sel.clear();
+    PR.drag = { mode: 'marq', x0: q.x, y0: q.y, x1: q.x, y1: q.y, base: new Set(PR.sel) };
+    prDraw();
   };
   cv.onpointermove = e => {
-    if (!d) return; const q = pos(e), n = d.n;
-    if (d.mode === 'move') { const ns = Math.max(0, Math.min(cl.len - n.l, q.s - d.off)); const np = rowP(tr, Math.max(0, Math.min(rowsOf(tr) - 1, q.r))); if (ns !== n.s || np !== n.p) { if (np !== n.p) preview(tr, np); n.s = ns; n.p = np; d.moved = true; drawRoll(tr, cl); } }
-    else { if (d.fresh && q.s < d.orig.s + d.orig.l) return; const nl = Math.max(1, Math.min(cl.len - n.s, q.s - n.s + 1)); if (nl !== n.l) { n.l = nl; d.moved = true; drawRoll(tr, cl); } }
+    const q = pt(e), geo = prGeo(cv), rows = rowsOf(tr);
+    const inNotes = q.y >= PRR && q.y < geo.H - prVelH();
+    const rF = (q.y - PRR + PR.sy) / geo.rh;
+    const p = q.x >= PRKW && inNotes && rF >= 0 && rF < rows ? rowP(tr, Math.floor(rF)) : null;
+    const hit = q.x >= PRKW && inNotes ? prHit(tr, cl, q.x, q.y) : null;
+    let changed = false;
+    if (p !== PR.hover) { PR.hover = p; changed = true; }
+    if ((hit ? hit.id : null) !== PR.hoverId) { PR.hoverId = hit ? hit.id : null; changed = true; }
+    cv.style.cursor = q.x < PRKW && p != null ? 'pointer' : hit ? (tr.kind !== 'drum' && Math.abs(q.x - (PRKW + (hit.s + hit.l) * geo.cw - PR.sx)) <= 6 ? 'ew-resize' : 'grab') : q.x >= PRKW && q.y >= PRR ? (PR.draw ? 'crosshair' : 'default') : 'default';
+    if (p != null) prSetInfo((tr.kind === 'drum' ? DRUMS[p] : pname(p)) + (hit ? ' · vel ' + hit.v : ''));
+    const d = PR.drag;
+    if (d) {
+      if (d.mode === 'keys') { if (p != null && p !== d.p) { d.p = p; preview(tr, p); } }
+      else if (d.mode === 'draw') {
+        const sF = (q.x - PRKW + PR.sx) / geo.cw;
+        const end = PR.snap ? Math.round(sF / PR.snap) * PR.snap : Math.ceil(sF);
+        const nl = prClampN(end - d.n.s, 1, cl.len - d.n.s);
+        if (nl !== d.n.l) { d.n.l = nl; changed = true; }
+      } else if (d.mode === 'resize') {
+        const sF = (q.x - PRKW + PR.sx) / geo.cw;
+        const end = PR.snap ? Math.round(sF / PR.snap) * PR.snap : Math.round(sF);
+        const n = cl.notes.find(n => n.id === d.anchorId);
+        if (n) { const nl = prClampN(end - n.s, 1, cl.len - n.s); if (nl !== n.l) { n.l = nl; d.moved = true; changed = true; } }
+      } else if (d.mode === 'move') {
+        const sF = (q.x - PRKW + PR.sx) / geo.cw, rrF = (q.y - PRR + PR.sy) / geo.rh;
+        const a = d.orig.find(o => o.id === d.anchorId); if (!a) return;
+        let dS = PR.snap ? Math.round((a.s + (sF - d.startS)) / PR.snap) * PR.snap - a.s : Math.round(sF - d.startS);
+        let dP = -Math.round(rrF - d.startR);
+        const minS = Math.min(...d.orig.map(o => o.s)), maxS = Math.max(...d.orig.map(o => o.s + o.l));
+        if (minS + dS < 0) dS = -minS;
+        if (maxS + dS > cl.len) dS = cl.len - maxS;
+        const minP = Math.min(...d.orig.map(o => o.p)), maxP = Math.max(...d.orig.map(o => o.p));
+        if (tr.kind === 'drum') { if (minP + dP < 0) dP = -minP; if (maxP + dP > 7) dP = 7 - maxP; }
+        else { if (minP + dP < LO) dP = LO - minP; if (maxP + dP > HI) dP = HI - maxP; }
+        d.orig.forEach(o => { const n = cl.notes.find(n => n.id === o.id); if (n) { n.s = o.s + dS; n.p = o.p + dP; } });
+        if (dS || dP) d.moved = true;
+        if (d.lastP !== dP) { d.lastP = dP; preview(tr, a.p + dP); }
+        changed = true;
+      } else if (d.mode === 'vel') { prVel(cl, q.y, geo); changed = true; }
+      else if (d.mode === 'marq') {
+        d.x1 = q.x; d.y1 = q.y;
+        const sel = new Set(d.base);
+        const c0 = (Math.min(d.x0, d.x1) - PRKW + PR.sx) / geo.cw, c1 = (Math.max(d.x0, d.x1) - PRKW + PR.sx) / geo.cw;
+        const rr0 = Math.floor((Math.min(d.y0, d.y1) - PRR + PR.sy) / geo.rh), rr1 = Math.floor((Math.max(d.y0, d.y1) - PRR + PR.sy) / geo.rh);
+        cl.notes.forEach(n => { const r = pRow(tr, n.p); if (n.s < c1 && n.s + n.l > c0 && r >= rr0 && r <= rr1) sel.add(n.id); });
+        PR.sel = sel; changed = true;
+      }
+    }
+    if (changed) prDraw();
   };
-  const finish = () => {
-    if (!d) return; const dd = d; d = null; const n = dd.n;
-    if (dd.fresh) op({ k: 'nb', t: tr.id, sc: focusClip.sc, add: [{ ...n }] });
-    else if (dd.moved) op({ k: 'nb', t: tr.id, sc: focusClip.sc, mod: [{ ...n }] });
-    else { cl.notes = cl.notes.filter(x => x !== n); op({ k: 'nb', t: tr.id, sc: focusClip.sc, del: [n.id] }); drawRoll(tr, cl); }
+  const up = () => {
+    const d = PR.drag; PR.drag = null;
+    if (!d) return;
+    if (d.mode === 'draw') op({ k: 'nb', t: tr.id, sc: sc(), add: [{ ...d.n }] });
+    else if (d.mode === 'move') {
+      if (d.clone) {
+        if (d.moved) {
+          const mod = d.orig.map(o => cl.notes.find(n => n.id === o.id)).filter(Boolean).map(n => ({ ...n }));
+          PR.sel = new Set(mod.map(n => n.id));
+          op({ k: 'nb', t: tr.id, sc: sc(), add: mod });
+        } else {
+          cl.notes = cl.notes.filter(n => !PR.sel.has(n.id));
+          PR.sel = new Set(d.origIds);
+        }
+      } else if (d.moved) {
+        const mod = d.orig.map(o => cl.notes.find(n => n.id === o.id)).filter(Boolean).map(n => ({ ...n }));
+        op({ k: 'nb', t: tr.id, sc: sc(), mod });
+      }
+    } else if (d.mode === 'resize' && d.moved) {
+      const n = cl.notes.find(n => n.id === d.anchorId);
+      if (n) op({ k: 'nb', t: tr.id, sc: sc(), mod: [{ ...n }] });
+    } else if (d.mode === 'vel' && d.changed) {
+      const mod = d.ids.map(id => cl.notes.find(n => n.id === id)).filter(Boolean).map(n => ({ ...n }));
+      if (mod.length) op({ k: 'nb', t: tr.id, sc: sc(), mod });
+    }
+    prDraw();
   };
-  cv.onpointerup = finish; cv.onpointercancel = finish;
+  cv.onpointerup = up; cv.onpointercancel = up;
+  cv.ondblclick = e => {
+    if (me.role !== 'producer' || PR.draw) return;
+    const q = pt(e), geo = prGeo(cv), rows = rowsOf(tr);
+    if (q.x < PRKW || q.y < PRR || (PR.vel && q.y >= geo.H - PRV) || prHit(tr, cl, q.x, q.y)) return;
+    const sF = (q.x - PRKW + PR.sx) / geo.cw, rF = (q.y - PRR + PR.sy) / geo.rh;
+    if (sF < 0 || sF >= cl.len || rF < 0 || rF >= rows) return;
+    const s0 = Math.min(cl.len - 1, prSnapStep(sF, 'floor'));
+    const n = { id: newId(), s: s0, l: tr.kind === 'drum' ? 1 : Math.min(PR.snap || 1, cl.len - s0), p: rowP(tr, Math.floor(rF)), v: 100 };
+    cl.notes.push(n); PR.sel = new Set([n.id]);
+    op({ k: 'nb', t: tr.id, sc: sc(), add: [{ ...n }] });
+    preview(tr, n.p); prDraw();
+  };
+  cv.onwheel = e => {
+    e.preventDefault();
+    const q = pt(e), zoom = e.ctrlKey || e.metaKey;
+    if (zoom && e.shiftKey) {
+      const before = (q.y - PRR + PR.sy) / prRh();
+      PR.zoomY = prClampN(PR.zoomY * (e.deltaY < 0 ? 1.12 : 1 / 1.12), .6, 2.6);
+      PR.sy = Math.max(0, before * prRh() - (q.y - PRR));
+    } else if (zoom) {
+      const at = (q.x - PRKW + PR.sx) / prCw();
+      PR.zoomX = prClampN(PR.zoomX * (e.deltaY < 0 ? 1.12 : 1 / 1.12), .5, 4);
+      PR.sx = Math.max(0, at * prCw() - (q.x - PRKW));
+    } else if (e.shiftKey) PR.sx += e.deltaY || e.deltaX;
+    else { PR.sy += e.deltaY; PR.sx += e.deltaX || 0; }
+    prDraw();
+  };
 }
+function prNudge(tr, cl, ds, dp) {
+  const sel = cl.notes.filter(n => PR.sel.has(n.id)); if (!sel.length) return;
+  const minS = Math.min(...sel.map(n => n.s)), maxS = Math.max(...sel.map(n => n.s + n.l));
+  const minP = Math.min(...sel.map(n => n.p)), maxP = Math.max(...sel.map(n => n.p));
+  let dS = ds, dP = dp;
+  if (minS + dS < 0) dS = -minS;
+  if (maxS + dS > cl.len) dS = cl.len - maxS;
+  if (tr.kind === 'drum') { if (minP + dP < 0) dP = -minP; if (maxP + dP > 7) dP = 7 - maxP; }
+  else { if (minP + dP < LO) dP = LO - minP; if (maxP + dP > HI) dP = HI - maxP; }
+  if (!dS && !dP) return;
+  sel.forEach(n => { n.s += dS; n.p += dP; });
+  if (dP) preview(tr, sel[0].p);
+  op({ k: 'nb', t: tr.id, sc: focusClip.sc, mod: sel.map(n => ({ ...n })) });
+  prDraw();
+}
+function prDup(tr, cl) {
+  const sel = cl.notes.filter(n => PR.sel.has(n.id)); if (!sel.length) return;
+  const u = PR.snap || 1, maxS = Math.max(...sel.map(n => n.s + n.l));
+  if (maxS + u > cl.len) return;
+  const copies = sel.map(n => ({ ...n, id: newId(), s: n.s + u }));
+  cl.notes.push(...copies);
+  PR.sel = new Set(copies.map(n => n.id));
+  op({ k: 'nb', t: tr.id, sc: focusClip.sc, add: copies.map(n => ({ ...n })) });
+  prDraw();
+}
+document.addEventListener('keydown', e => {
+  if (!S || !focusClip || view !== 'sess') return;
+  const ed = document.getElementById('clipEditor');
+  if (!ed || ed.hidden) return;
+  const tr = track(focusClip.t), cl = tr && clipOfScene(tr, focusClip.sc);
+  if (!tr || !cl || isStepView(tr)) return;
+  if (/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement && document.activeElement.tagName)) return;
+  const mod = e.ctrlKey || e.metaKey, k = e.key;
+  if (k === 'Delete' || k === 'Backspace') {
+    if (!PR.sel.size) return;
+    const ids = [...PR.sel];
+    cl.notes = cl.notes.filter(n => !PR.sel.has(n.id)); PR.sel.clear();
+    op({ k: 'nb', t: tr.id, sc: focusClip.sc, del: ids }); prDraw(); e.preventDefault(); return;
+  }
+  if (mod && k.toLowerCase() === 'a') { PR.sel = new Set(cl.notes.map(n => n.id)); prDraw(); e.preventDefault(); return; }
+  if (mod && k.toLowerCase() === 'd') { prDup(tr, cl); e.preventDefault(); return; }
+  if (k === 'Escape') { PR.sel.clear(); prDraw(); return; }
+  if (k === 'b' || k === 'B') { if (!mod) { PR.draw = !PR.draw; prTools(); e.preventDefault(); } return; }
+  if (k === '+' || k === '=') { PR.zoomX = prClampN(PR.zoomX * 1.15, .5, 4); prDraw(); e.preventDefault(); return; }
+  if (k === '-' || k === '_') { PR.zoomX = prClampN(PR.zoomX / 1.15, .5, 4); prDraw(); e.preventDefault(); return; }
+  if (k === 'ArrowLeft' || k === 'ArrowRight' || k === 'ArrowUp' || k === 'ArrowDown') {
+    if (!PR.sel.size) return;
+    const u = PR.snap || 1;
+    const ds = k === 'ArrowLeft' ? -u : k === 'ArrowRight' ? u : 0;
+    const dp = k === 'ArrowUp' ? (e.shiftKey ? 12 : 1) : k === 'ArrowDown' ? (e.shiftKey ? -12 : -1) : 0;
+    prNudge(tr, cl, ds, dp); e.preventDefault();
+  }
+});
+window.addEventListener('resize', () => prDraw());
 
 // ---------------- AUX (retornos) ----------------
 function renderAux() {
@@ -1098,8 +1476,16 @@ function syncTransportUI() {
   $('#bpm').value = S.bpm; $('#quant').value = S.q; $('#play').classList.toggle('on', S.playing);
   document.getElementById('app').classList.toggle('ro', me.role !== 'producer');
 }
-(function raf() {
-  if (S) { if (view === 'sess') S.tracks.forEach(updatePlayingMarks); else { const len = arrLen(); S.tracks.forEach(tr => { drawLane(tr, len); if (autoOpen.has(tr.id)) drawAutoLane(tr, len); }); } }
+(function raf(ts) {
+  if (S) {
+    if (view === 'sess') {
+      S.tracks.forEach(updatePlayingMarks);
+      if (S.playing && focusClip) {
+        const tr = track(focusClip.t);
+        if (tr && !isStepView(tr) && document.getElementById('rollcv') && ts - (raf.last || 0) > 40) { raf.last = ts; prDraw(); }
+      }
+    } else { const len = arrLen(); S.tracks.forEach(tr => { drawLane(tr, len); if (autoOpen.has(tr.id)) drawAutoLane(tr, len); }); }
+  }
   requestAnimationFrame(raf);
 })();
 function renderUsers() {
