@@ -1078,9 +1078,15 @@ document.addEventListener('keyup', e => { liveNoteOff('k:' + e.key.toLowerCase()
 function openTrack(id) {
   const tr = track(id); if (!tr || !S.scenes.length) return;
   devTrack = id;
-  const sc = focusClip && focusClip.t === id && S.scenes.some(s => s.id === focusClip.sc) ? focusClip.sc : S.scenes[0].id;
-  focusClip = { t: id, sc };
-  renderSession(); renderClipEditor(); updateInputUI();
+  let sc = focusClip && focusClip.t === id && tr.clips[focusClip.sc] ? focusClip.sc : (S.scenes.find(s => tr.clips[s.id]) || {}).id;
+  renderSession(); updateInputUI();
+  if (sc) { focusClip = { t: id, sc }; return renderClipEditor(); }
+  // canal sem clipe em nenhuma cena: cria um na primeira cena e abre o editor
+  focusClip = null; renderClipEditor();
+  if (me.role !== 'producer') return;
+  sc = S.scenes[0].id; focusClip = { t: id, sc };
+  op({ k: 'newClip', t: id, sc, name: '', len: 16 });
+  setTimeout(renderClipEditor, 120);
 }
 $('#unsolo').onclick = () => {
   if (me.role !== 'producer') return;
