@@ -133,6 +133,9 @@ aside{background:var(--p);display:flex;flex-direction:column;min-height:0;border
       BPM <input id="bpm" type="number" min="60" max="200" style="width:56px">
       Quant <select id="quant"><option value="0">livre</option><option value="4">1 tempo</option><option value="16" selected>1 compasso</option></select>
     </span>
+    <button id="midiBtn" title="Tocar com um controlador MIDI">MIDI</button>
+    <button id="kbBtn" title="Tocar com o teclado do computador (A–K, Z/X oitavas)">⌨</button>
+    <small id="midiStatus" class="mu"></small>
     <button id="unsolo" title="Desativa o solo de todos os canais">Unsolo</button>
     <button id="rec">● REC</button>
   </header>
@@ -704,9 +707,11 @@ $('#sess').addEventListener('dblclick', e => {
   el.value = def; sendParam(el);
 });
 $('#sess').addEventListener('click', e => {
+  const colEl = e.target.closest('.col[id^="trow-"]');
+  if (colEl && !e.target.closest('button,input,[data-act]')) return openTrack(colEl.id.slice(5));
   const b = e.target.closest('[data-act]'); if (!b) return;
   const act = b.dataset.act, id = b.dataset.t, tr = id && track(id);
-  if (act === 'select') { devTrack = id; return renderSession(); }
+  if (act === 'select') return openTrack(id);
   if (act === 'arm') { armed.has(id) ? armed.delete(id) : armed.add(id); b.classList.toggle('on', armed.has(id)); return; }
   if (act === 'stopAll') { S.tracks.forEach(x => op({ k: 'launch', t: x.id, sc: null })); return; }
   if (act === 'addScene') return op({ k: 'addScene' });
@@ -764,7 +769,14 @@ function renderClipEditor() {
   const box = $('#clipEditor');
   if (!focusClip) { box.hidden = true; return; }
   const tr = track(focusClip.t), cl = tr && clipOfScene(tr, focusClip.sc);
-  if (!tr || !cl) { box.hidden = true; focusClip = null; return; }
+  if (!tr) { box.hidden = true; focusClip = null; return; }
+  if (!cl) {
+    box.hidden = false;
+    box.innerHTML = `<div class="aheader"><b>${esc(tr.name)}</b> · cena ${S.scenes.findIndex(s => s.id === focusClip.sc) + 1} sem clipe
+      <button id="clipCreate">+ Criar clipe nesta cena</button> <small class="mu">ou escolha uma cena com clipe na grade</small></div>`;
+    $('#clipCreate').onclick = () => { op({ k: 'newClip', t: tr.id, sc: focusClip.sc, name: '', len: 16 }); setTimeout(renderClipEditor, 120); };
+    return;
+  }
   box.hidden = false;
   box.innerHTML = `<div class="aheader"><b>Editando:</b> ${esc(tr.name)} · <input type="text" id="clipName" value="${esc(cl.name)}" maxlength="24" style="width:120px">
     <label>Passos <input type="number" id="clipLen" min="1" max="128" value="${cl.len}" style="width:64px"></label>
@@ -1013,11 +1025,69 @@ $('#play').onclick = () => { ctx.resume(); op({ k: 'play' }); };
 $('#stop').onclick = () => op({ k: 'stop' });
 $('#bpm').onchange = e => op({ k: 'bpm', v: +e.target.value });
 $('#quant').onchange = e => op({ k: 'quant', v: +e.target.value });
+
+// ---- entrada ao vivo: MIDI e teclado do computador tocam o canal selecionado ----
+let midiOn = false, kbOn = false, midiAccess = null, kbOct = 0;
+const heldNotes = new Map(); // chave da tecla/nota -> voz ativa (para soltar no release)
+const KB = { a: 0, w: 1, s: 2, e: 3, d: 4, f: 5, t: 6, g: 7, y: 8, h: 9, u: 10, j: 11, k: 12 };
+const DRUM_KB = { a: 0, s: 1, d: 2, f: 3, g: 4, h: 5, j: 6, k: 7 };
+function liveNoteOn(key, p) {
+  const tr = track(devTrack); if (!tr || !ctx || heldNotes.has(key)) return;
+  ctx.resume(); heldNotes.set(key, trig(tr, p, ctx.currentTime + 0.005, 30, 0.9) || null);
+}
+function liveNoteOff(key) { const h = heldNotes.get(key); heldNotes.delete(key); if (h && h.release) h.release(); }
+function updateInputUI() {
+  $('#midiBtn').classList.toggle('on', midiOn);
+  $('#kbBtn').classList.toggle('on', kbOn);
+  const names = midiOn && midiAccess ? [...midiAccess.inputs.values()].map(i => i.name) : [];
+  const tr = track(devTrack);
+  $('#midiStatus').textContent = (midiOn ? (names.length ? 'MIDI: ' + names.join(', ') : 'nenhum dispositivo MIDI') : 'MIDI desligado') +
+    ' · ' + (kbOn ? 'teclado ligado (oitava ' + (kbOct >= 0 ? '+' : '') + kbOct + ')' : 'teclado desligado') + (tr ? ' → ' + tr.name : '');
+}
+function onMidi(m) {
+  const [st, n, vel] = m.data, cmd = st & 0xf0, tr = track(devTrack); if (!tr) return;
+  const p = tr.kind === 'drum' ? n - 36 : n;
+  if (tr.kind === 'drum' && (p < 0 || p > 7)) return;
+  if (cmd === 0x90 && vel > 0) liveNoteOn('m:' + n, p);
+  else if (cmd === 0x80 || (cmd === 0x90 && vel === 0)) liveNoteOff('m:' + n);
+}
+async function toggleMidi() {
+  if (midiOn) { midiOn = false; if (midiAccess) midiAccess.inputs.forEach(i => i.onmidimessage = null); return updateInputUI(); }
+  if (!navigator.requestMIDIAccess) { $('#midiStatus').textContent = 'Este navegador não tem suporte a MIDI (use Chrome ou Edge).'; return; }
+  try { midiAccess = await navigator.requestMIDIAccess(); }
+  catch { $('#midiStatus').textContent = 'Permissão MIDI negada.'; return; }
+  midiOn = true;
+  const bind = () => midiAccess.inputs.forEach(i => i.onmidimessage = midiOn ? onMidi : null);
+  bind(); midiAccess.onstatechange = () => { bind(); updateInputUI(); };
+  updateInputUI();
+}
+$('#midiBtn').onclick = toggleMidi;
+$('#kbBtn').onclick = () => { kbOn = !kbOn; updateInputUI(); };
+document.addEventListener('keydown', e => {
+  if (!kbOn || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (/INPUT|TEXTAREA|SELECT/.test(document.activeElement && document.activeElement.tagName)) return;
+  const k = e.key.toLowerCase(), tr = track(devTrack); if (!tr) return;
+  if (k === 'z' || k === 'x') { kbOct = Math.max(-2, Math.min(2, kbOct + (k === 'x' ? 1 : -1))); return updateInputUI(); }
+  const p = tr.kind === 'drum' ? DRUM_KB[k] : (KB[k] !== undefined ? 60 + 12 * kbOct + KB[k] : undefined);
+  if (p === undefined) return;
+  e.preventDefault(); liveNoteOn('k:' + k, p);
+});
+document.addEventListener('keyup', e => { liveNoteOff('k:' + e.key.toLowerCase()); });
+
+// ---- clicar no canal abre a edição dele: piano roll (melódico) ou Steps (bateria) ----
+function openTrack(id) {
+  const tr = track(id); if (!tr || !S.scenes.length) return;
+  devTrack = id;
+  const sc = focusClip && focusClip.t === id && S.scenes.some(s => s.id === focusClip.sc) ? focusClip.sc : S.scenes[0].id;
+  focusClip = { t: id, sc };
+  renderSession(); renderClipEditor(); updateInputUI();
+}
 $('#unsolo').onclick = () => {
   if (me.role !== 'producer') return;
   S.tracks.forEach(tr => { if (tr.solo) { tr.solo = false; op({ k: 'param', t: tr.id, p: 'solo', v: false }); } });
   S.tracks.forEach(applyChain); renderSession(); renderArr();
 };
+
 function syncTransportUI() {
   $('#bpm').value = S.bpm; $('#quant').value = S.q; $('#play').classList.toggle('on', S.playing);
   document.getElementById('app').classList.toggle('ro', me.role !== 'producer');
